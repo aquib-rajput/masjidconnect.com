@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
-export const revalidate = 5 // Revalidate every 5 seconds for fresh feed
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
   try {
