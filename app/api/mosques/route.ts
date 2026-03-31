@@ -62,9 +62,11 @@ export async function POST(request: NextRequest) {
       .eq("id", user.id)
       .single();
 
-    if (!profile || !["admin", "shura"].includes(profile.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!profile) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
+
+    const isAdminOrShura = ["admin", "shura"].includes(profile.role);
 
     const body = await request.json();
     const {
@@ -113,6 +115,7 @@ export async function POST(request: NextRequest) {
         capacity,
         established_year,
         admin_id: user.id,
+        is_verified: isAdminOrShura ? (body.is_verified ?? true) : false,
       })
       .select()
       .single();

@@ -71,7 +71,8 @@ export function MosqueDirectory() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [sortBy, setSortBy] = useState('name')
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([])
-  const [verifiedOnly, setVerifiedOnly] = useState(false)
+  const [mosques, setMosques] = useState<Mosque[]>([])
+  const [loading, setLoading] = useState(true)
 
   // Nearby state
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
@@ -80,8 +81,26 @@ export function MosqueDirectory() {
   const [radius, setRadius] = useState(10)
   const [nearbyMosques, setNearbyMosques] = useState<NearbyMosque[]>([])
 
+  useEffect(() => {
+    const fetchMosques = async () => {
+      try {
+        const res = await fetch("/api/mosques?limit=100")
+        const data = await res.json()
+        if (data.mosques) {
+          // Public directory only shows verified mosques
+          setMosques(data.mosques.filter((m: any) => m.is_verified))
+        }
+      } catch (error) {
+        console.error("Failed to fetch mosques:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchMosques()
+  }, [])
+
   const filteredMosques = useMemo(() => {
-    let result = [...mockMosques]
+    let result = [...mosques]
 
     // Search filter
     if (searchQuery) {
@@ -95,16 +114,11 @@ export function MosqueDirectory() {
       )
     }
 
-    // Verified filter
-    if (verifiedOnly) {
-      result = result.filter((mosque) => mosque.isVerified)
-    }
-
     // Facilities filter
     if (selectedFacilities.length > 0) {
       result = result.filter((mosque) =>
         selectedFacilities.every((facility) =>
-          mosque.facilities.includes(facility)
+          mosque.facilities?.includes(facility)
         )
       )
     }
@@ -115,15 +129,15 @@ export function MosqueDirectory() {
         result.sort((a, b) => a.name.localeCompare(b.name))
         break
       case 'capacity':
-        result.sort((a, b) => b.capacity - a.capacity)
+        result.sort((a, b) => (b.capacity || 0) - (a.capacity || 0))
         break
       case 'established':
-        result.sort((a, b) => a.establishedYear - b.establishedYear)
+        result.sort((a, b) => (a.establishedYear || 0) - (b.establishedYear || 0))
         break
     }
 
     return result
-  }, [searchQuery, sortBy, selectedFacilities, verifiedOnly])
+  }, [mosques, searchQuery, sortBy, selectedFacilities])
 
   const toggleFacility = (facility: string) => {
     setSelectedFacilities((prev) =>
@@ -201,7 +215,6 @@ export function MosqueDirectory() {
         </TabsList>
 
         <TabsContent value="all" className="mt-6 space-y-6">
-          {/* Filters */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -251,15 +264,6 @@ export function MosqueDirectory() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <Button
-                variant={verifiedOnly ? "default" : "outline"}
-                onClick={() => setVerifiedOnly(!verifiedOnly)}
-                className="gap-2"
-              >
-                <CheckCircle className="h-4 w-4" />
-                Verified Only
-              </Button>
-
               <div className="flex items-center rounded-lg border border-input p-1">
                 <Button
                   variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
@@ -283,11 +287,16 @@ export function MosqueDirectory() {
 
           {/* Results count */}
           <p className="text-sm text-muted-foreground">
-            Showing {filteredMosques.length} mosque{filteredMosques.length !== 1 ? 's' : ''}
+            {loading ? "Loading mosques..." : `Showing ${filteredMosques.length} mosque${filteredMosques.length !== 1 ? 's' : ''}`}
           </p>
 
           {/* Mosque Grid/List */}
-          {filteredMosques.length === 0 ? (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20 opacity-50">
+              <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+              <p className="text-sm font-medium">Fetching directory...</p>
+            </div>
+          ) : filteredMosques.length === 0 ? (
             <div className="py-12 text-center">
               <MapPin className="mx-auto h-12 w-12 text-muted-foreground/50" />
               <h3 className="mt-4 text-lg font-semibold">No mosques found</h3>

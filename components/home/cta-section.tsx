@@ -28,7 +28,7 @@ export function CTASection() {
           </p>
 
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link href="/admin">
+            <Link href="/mosques/register">
               <Button 
                 size="lg" 
                 variant="secondary" 

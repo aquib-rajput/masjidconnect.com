@@ -23,57 +23,108 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Pencil, Trash2, MapPin, Users } from "lucide-react"
-import { mosques as mockMosqueData } from "@/lib/mock-data"
-import type { Mosque } from "@/lib/types"
-
-const mosques = mockMosqueData
+import { Plus, Pencil, Trash2, MapPin, Users, CheckCircle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { useEffect } from "react"
 
 export default function AdminMosquesPage() {
-  const [mosqueList, setMosqueList] = useState<Mosque[]>(mosques)
+  const [mosqueList, setMosqueList] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [editingMosque, setEditingMosque] = useState<Mosque | null>(null)
+  const [editingMosque, setEditingMosque] = useState<any | null>(null)
 
-  const handleDelete = (id: string) => {
-    setMosqueList(mosqueList.filter(m => m.id !== id))
-    toast.success("Mosque removed successfully")
+  const fetchMosques = async () => {
+    try {
+      const res = await fetch("/api/mosques?limit=100")
+      const data = await res.json()
+      if (data.mosques) {
+        setMosqueList(data.mosques)
+      }
+    } catch (error) {
+      toast.error("Failed to fetch mosques")
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleSave = (formData: FormData) => {
-    const newMosque: Mosque = {
-      id: editingMosque?.id || `mosque-${Date.now()}`,
-      name: formData.get("name") as string,
-      address: formData.get("address") as string,
-      city: formData.get("city") as string,
-      state: formData.get("state") as string,
-      country: formData.get("country") as string,
-      zipCode: formData.get("zipCode") as string,
-      phone: formData.get("phone") as string,
-      email: formData.get("email") as string,
-      website: formData.get("website") as string || undefined,
-      description: formData.get("description") as string,
+  useEffect(() => {
+    fetchMosques()
+  }, [])
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this mosque?")) return
+    
+    try {
+      const res = await fetch(`/api/mosques/${id}`, { method: "DELETE" })
+      if (res.ok) {
+        setMosqueList(mosqueList.filter(m => m.id !== id))
+        toast.success("Mosque removed successfully")
+      } else {
+        throw new Error("Failed to delete")
+      }
+    } catch (error) {
+      toast.error("Error deleting mosque")
+    }
+  }
+
+  const handleVerify = async (id: string) => {
+    try {
+      const res = await fetch(`/api/mosques/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_verified: true }),
+      })
+      
+      if (res.ok) {
+        const { mosque } = await res.json()
+        setMosqueList(mosqueList.map(m => m.id === id ? mosque : m))
+        toast.success("Mosque verified successfully")
+      }
+    } catch (error) {
+      toast.error("Failed to verify mosque")
+    }
+  }
+
+  const handleSave = async (formData: FormData) => {
+    const data = {
+      name: formData.get("name"),
+      address: formData.get("address"),
+      city: formData.get("city"),
+      state: formData.get("state"),
+      country: formData.get("country"),
+      zip_code: formData.get("zipCode"),
+      phone: formData.get("phone"),
+      email: formData.get("email"),
+      website: formData.get("website") || null,
+      description: formData.get("description"),
       capacity: parseInt(formData.get("capacity") as string) || 0,
-      establishedYear: parseInt(formData.get("established") as string) || new Date().getFullYear(),
+      established_year: parseInt(formData.get("established") as string) || new Date().getFullYear(),
       latitude: parseFloat(formData.get("lat") as string) || 0,
       longitude: parseFloat(formData.get("lng") as string) || 0,
-      facilities: editingMosque?.facilities || [],
-      imageUrl: editingMosque?.imageUrl || "/images/mosque-placeholder.jpg",
-      isVerified: true,
-      createdAt: editingMosque?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     }
 
-    if (editingMosque) {
-      setMosqueList(mosqueList.map(m => m.id === editingMosque.id ? newMosque : m))
-      toast.success("Mosque updated successfully")
-    } else {
-      setMosqueList([...mosqueList, newMosque])
-      toast.success("Mosque added successfully")
-    }
+    try {
+      const url = editingMosque ? `/api/mosques/${editingMosque.id}` : "/api/mosques"
+      const method = editingMosque ? "PATCH" : "POST"
+      
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      })
 
-    setEditingMosque(null)
-    setIsAddDialogOpen(false)
+      if (res.ok) {
+        toast.success(editingMosque ? "Mosque updated" : "Mosque added")
+        fetchMosques()
+        setEditingMosque(null)
+        setIsAddDialogOpen(false)
+      } else {
+        const err = await res.json()
+        throw new Error(err.error)
+      }
+    } catch (error: any) {
+      toast.error(error.message)
+    }
   }
 
   return (
@@ -120,53 +171,79 @@ export default function AdminMosquesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mosqueList.map((mosque) => (
-                <TableRow key={mosque.id}>
-                  <TableCell className="font-medium">{mosque.name}</TableCell>
-                  <TableCell>{mosque.city}, {mosque.state}</TableCell>
-                  <TableCell>{mosque.establishedYear}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      {mosque.capacity}
-                    </div>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground font-medium italic">Loading mosques...</p>
                   </TableCell>
-                  <TableCell>
-                    <Badge variant={mosque.isVerified ? "default" : "secondary"}>
-                      {mosque.isVerified ? "Verified" : "Pending"}
-                    </Badge>
+                </TableRow>
+              ) : mosqueList.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground italic">
+                    No mosques found.
                   </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Dialog>
-                        <DialogTrigger asChild>
+                </TableRow>
+              ) : (
+                mosqueList.map((mosque) => (
+                  <TableRow key={mosque.id}>
+                    <TableCell className="font-medium">{mosque.name}</TableCell>
+                    <TableCell>{mosque.city}, {mosque.state}</TableCell>
+                    <TableCell>{mosque.established_year}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        {mosque.capacity}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={mosque.is_verified ? "default" : "secondary"}>
+                        {mosque.is_verified ? "Verified" : "Pending"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {!mosque.is_verified && (
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => setEditingMosque(mosque)}
+                            title="Verify Mosque"
+                            className="text-primary hover:bg-primary/10"
+                            onClick={() => handleVerify(mosque.id)}
                           >
-                            <Pencil className="h-4 w-4" />
+                            <CheckCircle className="h-4 w-4" />
                           </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                          <DialogHeader>
-                            <DialogTitle>Edit Mosque</DialogTitle>
-                            <DialogDescription>Update mosque information.</DialogDescription>
-                          </DialogHeader>
-                          <MosqueForm mosque={mosque} onSave={handleSave} />
-                        </DialogContent>
-                      </Dialog>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(mosque.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                        )}
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setEditingMosque(mosque)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                            <DialogHeader>
+                              <DialogTitle>Edit Mosque</DialogTitle>
+                              <DialogDescription>Update mosque information.</DialogDescription>
+                            </DialogHeader>
+                            <MosqueForm mosque={mosque} onSave={handleSave} />
+                          </DialogContent>
+                        </Dialog>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(mosque.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -175,7 +252,7 @@ export default function AdminMosquesPage() {
   )
 }
 
-function MosqueForm({ mosque, onSave }: { mosque?: Mosque; onSave: (data: FormData) => void }) {
+function MosqueForm({ mosque, onSave }: { mosque?: any; onSave: (data: FormData) => void }) {
   return (
     <form action={onSave} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -185,7 +262,7 @@ function MosqueForm({ mosque, onSave }: { mosque?: Mosque; onSave: (data: FormDa
         </div>
         <div className="space-y-2">
           <Label htmlFor="established">Established Year</Label>
-          <Input id="established" name="established" defaultValue={mosque?.establishedYear} required />
+          <Input id="established" name="established" defaultValue={mosque?.established_year} required />
         </div>
       </div>
 
@@ -205,7 +282,7 @@ function MosqueForm({ mosque, onSave }: { mosque?: Mosque; onSave: (data: FormDa
         </div>
         <div className="space-y-2">
           <Label htmlFor="zipCode">Zip Code</Label>
-          <Input id="zipCode" name="zipCode" defaultValue={mosque?.zipCode} required />
+          <Input id="zipCode" name="zipCode" defaultValue={mosque?.zip_code} required />
         </div>
       </div>
 
