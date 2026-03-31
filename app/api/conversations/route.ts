@@ -116,44 +116,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid conversation type' }, { status: 400 })
     }
 
-    if (type === 'direct' && (!participant_ids || participant_ids.length !== 1)) {
-      return NextResponse.json({ error: 'Direct conversations require exactly one other participant' }, { status: 400 })
-    }
-
-    // For direct messages, check if conversation already exists
     if (type === 'direct') {
-      const otherUserId = participant_ids[0]
+      if (!participant_ids || participant_ids.length !== 1) {
+        return NextResponse.json({ error: 'Direct conversations require exactly one other participant' }, { status: 400 })
+      }
       
-      // Get all conversations the current user is in
-      const { data: userConvs } = await supabase
-        .from('conversation_participants')
-        .select('conversation_id')
-        .eq('user_id', user.id)
+      const otherUserId = participant_ids[0]
+      if (otherUserId === user.id) {
+        return NextResponse.json({ error: 'Cannot start a direct conversation with yourself' }, { status: 400 })
+      }
 
-      if (userConvs && userConvs.length > 0) {
-        const userConvIds = userConvs.map(c => c.conversation_id)
+      // Efficiently check for existing direct conversation
+      const { data: existing, error: checkError } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id, conversations!inner(type)')
+        .eq('user_id', user.id)
+        .eq('conversations.type', 'direct')
+
+      if (existing && existing.length > 0) {
+        const myDirectConvIds = existing.map(e => e.conversation_id)
         
-        // Check if other user is in any of these conversations
-        const { data: otherUserConvs } = await supabase
+        const { data: common } = await supabase
           .from('conversation_participants')
           .select('conversation_id')
           .eq('user_id', otherUserId)
-          .in('conversation_id', userConvIds)
+          .in('conversation_id', myDirectConvIds)
+          .maybeSingle()
 
-        if (otherUserConvs && otherUserConvs.length > 0) {
-          // Check if any of these are direct conversations
-          for (const conv of otherUserConvs) {
-            const { data: convData } = await supabase
-              .from('conversations')
-              .select('*')
-              .eq('id', conv.conversation_id)
-              .eq('type', 'direct')
-              .maybeSingle()
-
-            if (convData) {
-              return NextResponse.json({ conversation: convData, existing: true })
-            }
-          }
+        if (common) {
+          // Fetch full conversation details to return
+          const { data: convData } = await supabase
+            .from('conversations')
+            .select('*')
+            .eq('id', common.conversation_id)
+            .single()
+            
+          return NextResponse.json({ conversation: convData, existing: true })
         }
       }
     }
@@ -175,29 +173,62 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 })
     }
 
-    // Add creator as admin participant
-    await supabase
-      .from('conversation_participants')
-      .insert({
-        conversation_id: conversation.id,
-        user_id: user.id,
-        role: 'admin'
-      })
-
-    // Add other participants
-    if (participant_ids && participant_ids.length > 0) {
-      const participants = participant_ids.map((id: string) => ({
+    // Add participants (creator + invited)
+    const allParticipants = [
+      { conversation_id: conversation.id, user_id: user.id, role: 'admin' },
+      ...(participant_ids || []).map((id: string) => ({
         conversation_id: conversation.id,
         user_id: id,
         role: 'member'
       }))
+    ]
 
-      await supabase
-        .from('conversation_participants')
-        .insert(participants)
+    const { error: partError } = await supabase
+      .from('conversation_participants')
+      .insert(allParticipants)
+
+    if (partError) {
+      console.error('Error adding participants:', partError)
+      // Cleanup the conversation if participants failed
+      await supabase.from('conversations').delete().eq('id', conversation.id)
+      return NextResponse.json({ error: 'Failed to add participants' }, { status: 500 })
     }
 
-    return NextResponse.json({ conversation }, { status: 201 })
+    // Fetch the full conversation details to return (same logic as GET)
+    const { data: fullConv, error: fetchError } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('id', conversation.id)
+      .single()
+
+    if (fetchError) {
+      return NextResponse.json({ conversation }, { status: 201 })
+    }
+
+    // Get participants with profiles
+    const { data: participants } = await supabase
+      .from('conversation_participants')
+      .select('user_id, role')
+      .eq('conversation_id', conversation.id)
+
+    const participantIds = participants?.map(p => p.user_id) || []
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, avatar_url')
+      .in('id', participantIds)
+
+    const participantsWithProfiles = participants?.map(p => {
+      const profile = profiles?.find(pr => pr.id === p.user_id)
+      return { ...profile, role: p.role }
+    }) || []
+
+    return NextResponse.json({ 
+      conversation: {
+        ...fullConv,
+        participants: participantsWithProfiles,
+        unread_count: 0
+      } 
+    }, { status: 201 })
   } catch (error) {
     console.error('Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

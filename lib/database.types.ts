@@ -193,3 +193,40 @@ export interface ShuraMember {
   profile?: Profile;
   mosque?: Mosque;
 }
+
+export interface Conversation {
+  id: string;
+  name: string | null;
+  type: "direct" | "group" | "broadcast";
+  image_url: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationParticipant {
+  id: string;
+  conversation_id: string;
+  user_id: string;
+  role: "admin" | "member";
+  last_read_at: string;
+  is_muted: boolean;
+  joined_at: string;
+}
+
+export interface Message {
+  id: string;
+  conversation_id: string;
+  sender_id: string | null;
+  content: string | null;
+  message_type: "text" | "image" | "file" | "system";
+  image_url: string | null;
+  file_url: string | null;
+  file_name: string | null;
+  reply_to_id: string | null;
+  is_edited: boolean;
+  is_deleted: boolean;
+  reactions: any;
+  created_at: string;
+  updated_at: string;
+}
