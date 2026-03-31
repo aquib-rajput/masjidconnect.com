@@ -250,10 +250,20 @@ export function MosqueDetail({ mosque }: MosqueDetailProps) {
               <div className="overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 sticky top-[64px] z-30 bg-background/80 backdrop-blur-md pt-2 pb-1 border-b border-border/40 sm:border-none sm:static">
                 <TabsList className="h-auto p-1 bg-muted/40 rounded-xl gap-1 inline-flex whitespace-nowrap min-w-full sm:min-w-0">
                   <TabsTrigger value="about" className="rounded-lg py-2.5 px-5 font-bold data-[state=active]:bg-background data-[state=active]:shadow-lg active:scale-95 transition-all">About</TabsTrigger>
-                  <TabsTrigger value="imams" className="rounded-lg py-2.5 px-5 font-bold data-[state=active]:bg-background data-[state=active]:shadow-lg active:scale-95 transition-all">Imams ({imams.length})</TabsTrigger>
+                  <TabsTrigger value="imams" className="rounded-lg py-2 px-3 font-bold data-[state=active]:bg-background data-[state=active]:shadow-lg active:scale-95 transition-all text-center h-full">
+                    <div className="flex flex-col items-center justify-center gap-0.5">
+                      <span className="text-[13px] sm:text-sm">Imams</span>
+                      <span className="text-[10px] opacity-60 font-medium leading-none">({imams.length})</span>
+                    </div>
+                  </TabsTrigger>
                   <TabsTrigger value="management" className="rounded-lg py-2.5 px-5 font-bold data-[state=active]:bg-background data-[state=active]:shadow-lg active:scale-95 transition-all">Management</TabsTrigger>
                   <TabsTrigger value="library" className="rounded-lg py-2.5 px-5 font-bold data-[state=active]:bg-background data-[state=active]:shadow-lg active:scale-95 transition-all">Library</TabsTrigger>
-                  <TabsTrigger value="events" className="rounded-lg py-2.5 px-5 font-bold data-[state=active]:bg-background data-[state=active]:shadow-lg active:scale-95 transition-all">Events ({events.length})</TabsTrigger>
+                  <TabsTrigger value="events" className="rounded-lg py-2 px-3 font-bold data-[state=active]:bg-background data-[state=active]:shadow-lg active:scale-95 transition-all text-center h-full">
+                    <div className="flex flex-col items-center justify-center gap-0.5">
+                      <span className="text-[13px] sm:text-sm">Events</span>
+                      <span className="text-[10px] opacity-60 font-medium leading-none">({events.length})</span>
+                    </div>
+                  </TabsTrigger>
                   <TabsTrigger value="announcements" className="rounded-lg py-2.5 px-5 font-bold data-[state=active]:bg-background data-[state=active]:shadow-lg active:scale-95 transition-all">Announcements</TabsTrigger>
                   <TabsTrigger value="donations" className="rounded-lg py-2.5 px-5 font-bold data-[state=active]:bg-background data-[state=active]:shadow-lg active:scale-95 transition-all">Donations </TabsTrigger>
                 </TabsList>
@@ -504,13 +514,13 @@ export function MosqueDetail({ mosque }: MosqueDetailProps) {
                     <h3 className="text-lg font-bold tracking-tight">Prayer Times</h3>
                   </div>
                 </CardHeader>
-                <CardContent className="p-5 space-y-6">
+                <CardContent className="p-3 sm:p-5 space-y-4 sm:space-y-6">
                   {/* Digital Clock and Date */}
-                  <div className="bg-muted/20 rounded-2xl p-6 text-center shadow-inner">
-                    <div className="text-4xl font-bold tracking-tight text-foreground lining-nums">
+                  <div className="bg-muted/20 rounded-2xl p-4 sm:p-6 text-center shadow-inner">
+                    <div className="text-2xl sm:text-4xl font-bold tracking-tight text-foreground lining-nums">
                       {format(currentTime, 'hh:mm:ss a')}
                     </div>
-                    <div className="text-xs text-muted-foreground font-semibold mt-1">
+                    <div className="text-[10px] sm:text-xs text-muted-foreground font-semibold mt-1">
                       {format(currentTime, 'EEEE, LLLL d, yyyy')}
                     </div>
                   </div>
@@ -615,25 +625,25 @@ function PrayerTimeRow({
 }) {
   return (
     <div className={cn(
-      "flex items-center justify-between px-3.5 py-3 rounded-xl transition-all duration-300",
+      "flex items-center justify-between px-2 sm:px-3.5 py-2.5 sm:py-3 rounded-xl transition-all duration-300",
       isCurrent ? "bg-emerald-500/5 text-emerald-800 shadow-sm border border-emerald-500/10" : "text-muted-foreground/60 hover:text-foreground"
     )}>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4">
         <div className={cn(
-          "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
+          "w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors",
           isCurrent ? "bg-emerald-500/20" : "bg-muted/50 group-hover:bg-muted"
         )}>
           {icon}
         </div>
         <div className="flex flex-col">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-[15px] tracking-tight">{label}</span>
-            <span className="text-[10px] font-medium opacity-40">{arabicLabel}</span>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <span className="font-bold text-sm sm:text-[15px] tracking-tight">{label}</span>
+            <span className="text-[9px] sm:text-[10px] font-medium opacity-40">{arabicLabel}</span>
           </div>
         </div>
       </div>
       <div className="text-right">
-        <span className="font-bold text-[15px] tracking-tight">{time}</span>
+        <span className="font-bold text-sm sm:text-[15px] tracking-tight">{time}</span>
       </div>
     </div>
   )
@@ -650,11 +660,11 @@ function MosqueIcon({ className }: { className?: string }) {
       strokeLinejoin="round"
       className={className}
     >
-      <path d="M12 3c-1.5 2-3 3.5-3 5.5a3 3 0 1 0 6 0c0-2-1.5-3.5-3-5.5z" />
-      <path d="M4 21V10a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11" />
-      <path d="M9 21v-4a3 3 0 0 1 6 0v4" />
-      <path d="M3 21h18" />
-      <path d="M4 10l8-6 8 6" />
+      <path d="M12 2v2" />
+      <path d="M12 4c-3.3 0-6 2.7-6 6v3h12v-3c0-3.3-2.7-6-6-6z" />
+      <path d="M4 21V11c0-1 1-2 2-2h12c1 0 2 1 2 2v10" />
+      <path d="M9 21v-4c0-1.7 1.3-3 3-3s3 1.3 3 3v4" />
+      <path d="M2 21h20" />
     </svg>
   )
 }

@@ -18,7 +18,13 @@ import {
   Send,
   Loader2,
   Trash2,
-  Flag
+  Flag,
+  Bookmark,
+  Calendar,
+  MapPin,
+  Quote,
+  Zap,
+  Info
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -26,10 +32,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 import Image from "next/image";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 interface Post {
   id: string;
@@ -37,6 +52,9 @@ interface Post {
   image_url: string | null;
   likes_count: number;
   comments_count: number;
+  post_type: 'text' | 'image' | 'event' | 'announcement' | 'prayer-request' | 'quote';
+  category: string;
+  metadata: any;
   created_at: string;
   author: {
     id: string;
@@ -45,6 +63,7 @@ interface Post {
     username: string | null;
   };
   is_liked?: boolean;
+  is_bookmarked?: boolean;
 }
 
 interface Comment {
@@ -66,6 +85,10 @@ export function RealtimeFeed() {
   const [newPostContent, setNewPostContent] = useState("");
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [postType, setPostType] = useState<Post['post_type']>('text');
+  const [eventDate, setEventDate] = useState("");
+  const [eventLocation, setEventLocation] = useState("");
+  const [quoteSource, setQuoteSource] = useState("");
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [comments, setComments] = useState<Record<string, Comment[]>>({});
   const [newComments, setNewComments] = useState<Record<string, string>>({});
@@ -95,14 +118,21 @@ export function RealtimeFeed() {
           .select("post_id")
           .eq("user_id", user.id);
 
+        const { data: bookmarks } = await supabase
+          .from("post_bookmarks")
+          .select("post_id")
+          .eq("user_id", user.id);
+
         const likedPostIds = new Set(likes?.map(l => l.post_id) || []);
+        const bookmarkedPostIds = new Set(bookmarks?.map(b => b.post_id) || []);
         
-        const postsWithLikes = data.map(post => ({
+        const updatedPosts = data.map(post => ({
           ...post,
-          is_liked: likedPostIds.has(post.id)
+          is_liked: likedPostIds.has(post.id),
+          is_bookmarked: bookmarkedPostIds.has(post.id)
         }));
         
-        setPosts(postsWithLikes);
+        setPosts(updatedPosts);
       } else {
         setPosts(data || []);
       }
@@ -206,6 +236,14 @@ export function RealtimeFeed() {
         imageUrl = url;
       }
 
+      // Prepare metadata
+      const metadata: any = {};
+      if (postType === 'event') {
+        metadata.eventDetails = { date: eventDate, location: eventLocation };
+      } else if (postType === 'quote') {
+        metadata.quoteSource = quoteSource;
+      }
+
       // Create post
       const { error } = await supabase
         .from("posts")
@@ -213,11 +251,17 @@ export function RealtimeFeed() {
           author_id: user.id,
           content: newPostContent.trim(),
           image_url: imageUrl,
+          post_type: postType,
+          metadata: metadata
         });
 
       if (error) throw error;
 
       setNewPostContent("");
+      setPostType('text');
+      setEventDate("");
+      setEventLocation("");
+      setQuoteSource("");
       clearImage();
       toast.success("Post created successfully");
     } catch (error) {
@@ -265,6 +309,40 @@ export function RealtimeFeed() {
       }
     } catch (error) {
       console.error("Error toggling like:", error);
+    }
+  };
+
+  // Toggle bookmark
+  const handleToggleBookmark = async (postId: string, isBookmarked: boolean) => {
+    if (!user) {
+      toast.error("Please sign in to save posts");
+      return;
+    }
+
+    try {
+      if (isBookmarked) {
+        await supabase
+          .from("post_bookmarks")
+          .delete()
+          .eq("post_id", postId)
+          .eq("user_id", user.id);
+
+        setPosts(prev =>
+          prev.map(p => p.id === postId ? { ...p, is_bookmarked: false } : p)
+        );
+        toast.success("Removed from bookmarks");
+      } else {
+        await supabase
+          .from("post_bookmarks")
+          .insert({ post_id: postId, user_id: user.id });
+
+        setPosts(prev =>
+          prev.map(p => p.id === postId ? { ...p, is_bookmarked: true } : p)
+        );
+        toast.success("Added to bookmarks");
+      }
+    } catch (error) {
+      console.error("Error toggling bookmark:", error);
     }
   };
 
@@ -426,25 +504,42 @@ export function RealtimeFeed() {
                     </Button>
                   </div>
                 )}
-                <div className="flex items-center justify-between">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleImageSelect}
-                    accept="image/*"
-                    className="hidden"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <ImagePlus className="mr-2 h-4 w-4" />
-                    Add Photo
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Select value={postType} onValueChange={(v: any) => setPostType(v)}>
+                      <SelectTrigger className="w-[140px] h-9 text-xs font-bold uppercase tracking-wider rounded-xl">
+                        <SelectValue placeholder="Post Type" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        <SelectItem value="text">General Post</SelectItem>
+                        <SelectItem value="event">Event</SelectItem>
+                        <SelectItem value="announcement">Announcement</SelectItem>
+                        <SelectItem value="prayer-request">Prayer Request</SelectItem>
+                        <SelectItem value="quote">Islamic Quote</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleImageSelect}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="rounded-xl h-9 px-3"
+                    >
+                      <ImagePlus className="mr-2 h-4 w-4 text-primary" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Photo</span>
+                    </Button>
+                  </div>
+
                   <Button
                     onClick={handleCreatePost}
                     disabled={posting || (!newPostContent.trim() && !selectedImage)}
+                    className="rounded-xl px-6 font-bold shadow-lg shadow-primary/20"
                   >
                     {posting ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -454,6 +549,56 @@ export function RealtimeFeed() {
                     Post
                   </Button>
                 </div>
+
+                {/* Conditional Metadata Inputs */}
+                {postType === 'event' && (
+                  <div className="grid grid-cols-2 gap-3 pt-2 animate-in fade-in slide-in-from-top-1 duration-300">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Date & Time</label>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-primary/40" />
+                        <input
+                          type="text"
+                          placeholder="Tomorrow at 2PM"
+                          value={eventDate}
+                          onChange={(e) => setEventDate(e.target.value)}
+                          className="w-full bg-muted/50 border-none rounded-xl pl-9 pr-3 py-2 text-sm focus:ring-1 focus:ring-primary/20"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Location</label>
+                      <div className="relative">
+                        <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-primary/40" />
+                        <input
+                          type="text"
+                          placeholder="Main Hall"
+                          value={eventLocation}
+                          onChange={(e) => setEventLocation(e.target.value)}
+                          className="w-full bg-muted/50 border-none rounded-xl pl-9 pr-3 py-2 text-sm focus:ring-1 focus:ring-primary/20"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {postType === 'quote' && (
+                  <div className="pt-2 animate-in fade-in slide-in-from-top-1 duration-300">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Source (e.g. Sahih Bukhari)</label>
+                      <div className="relative">
+                        <Quote className="absolute left-3 top-2.5 h-4 w-4 text-primary/40" />
+                        <input
+                          type="text"
+                          placeholder="Hadith Vol 1..."
+                          value={quoteSource}
+                          onChange={(e) => setQuoteSource(e.target.value)}
+                          className="w-full bg-muted/50 border-none rounded-xl pl-9 pr-3 py-2 text-sm focus:ring-1 focus:ring-primary/20"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>
@@ -512,11 +657,72 @@ export function RealtimeFeed() {
               </DropdownMenu>
             </CardHeader>
             <CardContent className="space-y-4">
-              {post.content && (
+              {/* Specialized Post Layouts */}
+              {post.post_type === 'quote' ? (
+                <div className="bg-primary/5 border-l-4 border-primary p-6 rounded-r-2xl">
+                  <Quote className="h-8 w-8 text-primary/20 mb-2" />
+                  <p className="text-xl font-medium italic text-primary/90 leading-relaxed">
+                    "{post.content}"
+                  </p>
+                  {post.metadata?.quoteSource && (
+                    <p className="mt-4 text-sm font-bold text-primary/60 uppercase tracking-widest">
+                      — {post.metadata.quoteSource}
+                    </p>
+                  )}
+                </div>
+              ) : post.post_type === 'event' ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge className="bg-emerald-500 hover:bg-emerald-600 border-none font-bold text-[10px] uppercase tracking-widest py-1 px-3">Community Event</Badge>
+                  </div>
+                  <p className="whitespace-pre-wrap text-lg font-medium">{post.content}</p>
+                  <div className="grid grid-cols-2 gap-4 bg-muted/30 p-4 rounded-2xl border border-border/40">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl bg-background flex items-center justify-center shadow-sm border border-border/40">
+                        <Calendar className="h-5 w-5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Date & Time</p>
+                        <p className="text-sm font-bold">{post.metadata?.eventDetails?.date || 'See details'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl bg-background flex items-center justify-center shadow-sm border border-border/40">
+                        <MapPin className="h-5 w-5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Location</p>
+                        <p className="text-sm font-bold">{post.metadata?.eventDetails?.location || 'Mosque'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : post.post_type === 'announcement' ? (
+                <div className="bg-amber-500/5 border border-amber-500/10 p-5 rounded-2xl">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Zap className="h-4 w-4 text-amber-600 fill-amber-600" />
+                    <span className="text-[10px] font-bold text-amber-700 uppercase tracking-[0.2em]">Official Announcement</span>
+                  </div>
+                  <p className="text-lg font-bold text-amber-900/80 leading-relaxed">{post.content}</p>
+                </div>
+              ) : post.post_type === 'prayer-request' ? (
+                <div className="bg-sky-500/5 border border-sky-500/10 p-5 rounded-2xl">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="h-2 w-2 rounded-full bg-sky-500 animate-pulse" />
+                    <span className="text-[10px] font-bold text-sky-700 uppercase tracking-[0.2em]">Prayer Request (Dua)</span>
+                  </div>
+                  <p className="text-lg font-medium text-sky-900/80 italic">"{post.content}"</p>
+                  <div className="mt-4 flex items-center gap-2 text-sky-600/80">
+                    <Info className="h-4 w-4" />
+                    <span className="text-xs font-medium">May Allah answer all sincere prayers. Ameen.</span>
+                  </div>
+                </div>
+              ) : (
                 <p className="whitespace-pre-wrap">{post.content}</p>
               )}
-              {post.image_url && (
-                <div className="relative aspect-video w-full overflow-hidden rounded-lg">
+
+              {post.image_url && post.post_type !== 'quote' && (
+                <div className="relative aspect-video w-full overflow-hidden rounded-2xl shadow-sm">
                   <Image
                     src={post.image_url}
                     alt="Post image"
@@ -547,8 +753,21 @@ export function RealtimeFeed() {
                 </Button>
                 <Button variant="ghost" size="sm">
                   <Share2 className="mr-2 h-4 w-4" />
-                  Share
+                  <span className="text-xs font-bold uppercase tracking-wider">Share</span>
                 </Button>
+                <div className="ml-auto">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleToggleBookmark(post.id, !!post.is_bookmarked)}
+                    className={post.is_bookmarked ? "text-primary bg-primary/5" : "text-muted-foreground"}
+                  >
+                    <Bookmark className={`mr-2 h-4 w-4 ${post.is_bookmarked ? "fill-current" : ""}`} />
+                    <span className="text-xs font-bold uppercase tracking-wider">
+                      {post.is_bookmarked ? "Saved" : "Save"}
+                    </span>
+                  </Button>
+                </div>
               </div>
 
               {/* Comments Section */}
