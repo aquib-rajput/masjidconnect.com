@@ -1,8 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
-import type { User, Session } from "@supabase/supabase-js";
+import { useAuth as useClerkAuth, useUser } from "@clerk/nextjs";
 
 export type UserRole = "admin" | "shura" | "imam" | "member";
 
@@ -22,9 +21,24 @@ export interface Profile {
   updated_at: string;
 }
 
+export interface AuthUser {
+  id: string;
+  clerk_id: string;
+  email: string | null;
+  email_confirmed_at: string | null;
+  user_metadata?: {
+    full_name?: string | null;
+    avatar_url?: string | null;
+  };
+}
+
+export interface AuthSession {
+  id: string | null;
+}
+
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: AuthUser | null;
+  session: AuthSession | null;
   profile: Profile | null;
   loading: boolean;
   signOut: () => Promise<void>;
@@ -39,34 +53,54 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [session, setSession] = useState<AuthSession | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const supabase = createClient();
+  const { isLoaded, userId, sessionId, signOut: clerkSignOut } = useClerkAuth();
+  const { user: clerkUser } = useUser();
 
-  const fetchProfile = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
+  const fetchProfile = useCallback(async () => {
+    try {
+      const response = await fetch("/api/profile", {
+        cache: "no-store",
+      });
 
-    if (error) {
+      if (response.status === 401) {
+        return null;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch profile: ${response.status}`);
+      }
+
+      const payload = await response.json();
+      return (payload.profile ?? null) as Profile | null;
+    } catch (error) {
       console.error("Error fetching profile:", error);
       return null;
     }
-
-    return data as Profile;
-  }, [supabase]);
+  }, []);
 
   const refreshProfile = useCallback(async () => {
-    if (user) {
-      const profileData = await fetchProfile(user.id);
-      setProfile(profileData);
+    if (!user) return;
+
+    const profileData = await fetchProfile();
+
+    if (profileData?.id && profileData.id !== user.id) {
+      setUser((previous) =>
+        previous
+          ? {
+              ...previous,
+              id: profileData.id,
+            }
+          : previous
+      );
     }
-  }, [user, fetchProfile]);
+
+    setProfile(profileData);
+  }, [fetchProfile, user]);
 
   // Update user online status every 30 seconds
   useEffect(() => {
@@ -74,9 +108,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const updateStatus = async () => {
       try {
-        await fetch('/api/users/status', { method: 'POST' });
+        await fetch("/api/users/status", { method: "POST" });
       } catch (error) {
-        console.error('Error updating status:', error);
+        console.error("Error updating status:", error);
       }
     };
 
@@ -86,18 +120,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [user]);
 
-  // Initialize auth and listen for changes
   useEffect(() => {
-    const initAuth = async () => {
+    const syncAuthState = async () => {
+      if (!isLoaded) {
+        return;
+      }
+
+      if (!userId) {
+        setUser(null);
+        setSession(null);
+        setProfile(null);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+
       try {
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
-        
-        if (currentSession?.user) {
-          setSession(currentSession);
-          setUser(currentSession.user);
-          const profileData = await fetchProfile(currentSession.user.id);
-          setProfile(profileData);
-        }
+        const primaryEmail = clerkUser?.primaryEmailAddress?.emailAddress ?? null;
+        const profileData = await fetchProfile();
+        const effectiveUserId = profileData?.id ?? userId;
+        const emailVerified =
+          clerkUser?.primaryEmailAddress?.verification?.status === "verified";
+
+        setSession({ id: sessionId ?? null });
+        setUser({
+          id: effectiveUserId,
+          clerk_id: userId,
+          email: primaryEmail,
+          email_confirmed_at: emailVerified ? new Date().toISOString() : null,
+          user_metadata: {
+            full_name: clerkUser?.fullName ?? null,
+            avatar_url: clerkUser?.imageUrl ?? null,
+          },
+        });
+        setProfile(profileData);
       } catch (error) {
         console.error("Error initializing auth:", error);
       } finally {
@@ -105,33 +162,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    initAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
-
-        if (newSession?.user) {
-          const profileData = await fetchProfile(newSession.user.id);
-          setProfile(profileData);
-        } else {
-          setProfile(null);
-        }
-
-        if (event === "SIGNED_OUT") {
-          setProfile(null);
-        }
-      }
-    );
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [supabase, fetchProfile]);
+    void syncAuthState();
+  }, [clerkUser, fetchProfile, isLoaded, sessionId, userId]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await clerkSignOut();
     setUser(null);
     setSession(null);
     setProfile(null);

@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { useAuth } from "@/lib/auth-context";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -30,57 +29,17 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Loader2, Lock, Bell, Shield, Trash2 } from "lucide-react";
+import { Loader2, Lock, Bell, Shield, Trash2, ExternalLink } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
   const { user, signOut, loading: authLoading } = useAuth();
-  const [changingPassword, setChangingPassword] = useState(false);
-  const [passwordData, setPasswordData] = useState({
-    newPassword: "",
-    confirmPassword: "",
-  });
 
   useEffect(() => {
     if (!authLoading && !user) {
       router.push("/auth/login?redirect=/settings");
     }
   }, [authLoading, user, router]);
-
-  const handlePasswordChange = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
-    }
-
-    if (passwordData.newPassword.length < 8) {
-      toast.error("Password must be at least 8 characters");
-      return;
-    }
-
-    setChangingPassword(true);
-
-    try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.updateUser({
-        password: passwordData.newPassword,
-      });
-
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-
-      toast.success("Password updated successfully");
-      setPasswordData({ newPassword: "", confirmPassword: "" });
-    } catch (error) {
-      toast.error("An error occurred");
-    } finally {
-      setChangingPassword(false);
-    }
-  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -120,55 +79,19 @@ export default function SettingsPage() {
                   Security
                 </CardTitle>
                 <CardDescription>
-                  Manage your password and security settings
+                  Manage your password and account security in Clerk
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <form onSubmit={handlePasswordChange} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="newPassword">New Password</Label>
-                    <Input
-                      id="newPassword"
-                      type="password"
-                      value={passwordData.newPassword}
-                      onChange={(e) =>
-                        setPasswordData({
-                          ...passwordData,
-                          newPassword: e.target.value,
-                        })
-                      }
-                      placeholder="Enter new password"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      value={passwordData.confirmPassword}
-                      onChange={(e) =>
-                        setPasswordData({
-                          ...passwordData,
-                          confirmPassword: e.target.value,
-                        })
-                      }
-                      placeholder="Confirm new password"
-                    />
-                  </div>
-                  <Button
-                    type="submit"
-                    disabled={changingPassword || !passwordData.newPassword}
-                  >
-                    {changingPassword ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Updating...
-                      </>
-                    ) : (
-                      "Update Password"
-                    )}
-                  </Button>
-                </form>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Password changes and multi-factor authentication are handled by your Clerk account settings.
+                </p>
+                <Button asChild>
+                  <Link href="/user-profile">
+                    Open Security Settings
+                    <ExternalLink className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
 
