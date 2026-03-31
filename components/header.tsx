@@ -340,11 +340,11 @@ function MosqueIcon({ className }: { className?: string }) {
       strokeLinejoin="round"
       className={className}
     >
-      <path d="M12 3c-1.5 2-3 3.5-3 5.5a3 3 0 1 0 6 0c0-2-1.5-3.5-3-5.5z" />
-      <path d="M4 21V10a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11" />
-      <path d="M9 21v-4a3 3 0 0 1 6 0v4" />
-      <path d="M3 21h18" />
-      <path d="M4 10l8-6 8 6" />
+      <path d="M12 2v2" />
+      <path d="M12 4c-3.3 0-6 2.7-6 6v3h12v-3c0-3.3-2.7-6-6-6z" />
+      <path d="M4 21V11c0-1 1-2 2-2h12c1 0 2 1 2 2v10" />
+      <path d="M9 21v-4c0-1.7 1.3-3 3-3s3 1.3 3 3v4" />
+      <path d="M2 21h20" />
     </svg>
   )
 }
