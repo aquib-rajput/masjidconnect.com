@@ -1,7 +1,7 @@
 "use client"
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   MapPin, 
   Phone, 
@@ -35,7 +35,12 @@ import {
   X,
   BookCopy,
   AlertCircle,
-  Check
+  Check,
+  Sunrise,
+  Sunset,
+  Sun,
+  Moon,
+  ArrowUpRight
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -85,6 +90,80 @@ export function MosqueDetail({ mosque }: MosqueDetailProps) {
     }
   }
 
+  // Dynamic Prayer Logic
+  const [currentTime, setCurrentTime] = useState(new Date())
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const getPrayerTimesArray = () => {
+    if (!prayerTimes) return []
+    return [
+      { name: 'Fajr', time: prayerTimes.fajr, arabic: 'الفجر', icon: <Sunset className="h-4 w-4" /> },
+      { name: 'Sunrise', time: '06:30 AM', arabic: 'الشروق', icon: <Sun className="h-4 w-4" /> },
+      { name: 'Dhuhr', time: prayerTimes.dhuhr, arabic: 'الظهر', icon: <Sun className="h-4 w-4" /> },
+      { name: 'Asr', time: prayerTimes.asr, arabic: 'العصر', icon: <Sun className="h-4 w-4" /> },
+      { name: 'Maghrib', time: prayerTimes.maghrib, arabic: 'المغرب', icon: <Sunset className="h-4 w-4" /> },
+      { name: 'Isha', time: prayerTimes.isha, arabic: 'العشاء', icon: <Moon className="h-4 w-4" /> },
+    ]
+  }
+
+  const getNextPrayer = () => {
+    const times = getPrayerTimesArray()
+    if (times.length === 0) return null
+    
+    const now = currentTime
+
+    for (const prayer of times) {
+      const [timeStr, period] = prayer.time.split(' ')
+      const [hours, minutes] = timeStr.split(':').map(Number)
+      let adjustedHours = hours
+      if (period === 'PM' && hours !== 12) adjustedHours += 12
+      if (period === 'AM' && hours === 12) adjustedHours = 0
+      
+      const prayerDate = new Date(now)
+      prayerDate.setHours(adjustedHours, minutes, 0, 0)
+      
+      if (prayerDate > now) {
+        return { ...prayer, isTomorrow: false }
+      }
+    }
+    
+    return { ...times[0], isTomorrow: true }
+  }
+
+  const nextPrayer = getNextPrayer()
+
+  // Find current prayer (the one whose time has passed but the next one hasn't arrived)
+  const getCurrentPrayerName = () => {
+    const times = getPrayerTimesArray()
+    if (times.length === 0) return null
+    
+    const now = currentTime
+    let current = times[times.length - 1].name // Default to Isha if it's late at night
+
+    for (let i = 0; i < times.length; i++) {
+      const [timeStr, period] = times[i].time.split(' ')
+      const [hours, minutes] = timeStr.split(':').map(Number)
+      let adjustedHours = hours
+      if (period === 'PM' && hours !== 12) adjustedHours += 12
+      if (period === 'AM' && hours === 12) adjustedHours = 0
+      
+      const prayerDate = new Date(now)
+      prayerDate.setHours(adjustedHours, minutes, 0, 0)
+      
+      if (prayerDate > now) {
+        return i === 0 ? 'Isha' : times[i-1].name
+      }
+    }
+    
+    return current
+  }
+
+  const currentPrayerName = getCurrentPrayerName()
+
   const handleDirections = () => {
     const url = `https://www.google.com/maps/dir/?api=1&destination=${mosque.latitude},${mosque.longitude}`
     window.open(url, '_blank')
@@ -108,7 +187,7 @@ export function MosqueDetail({ mosque }: MosqueDetailProps) {
         <div className="relative mx-auto max-w-7xl px-4 py-6 sm:py-10 lg:px-8">
           <Link 
             href="/mosques"
-            className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 hover:text-primary transition-all mb-8 group active:scale-95"
+            className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 hover:text-primary transition-all mb-8 group active:scale-95"
           >
             <div className="p-1 rounded-lg bg-muted group-hover:bg-primary/10 transition-colors">
               <ChevronLeft className="h-4 w-4" />
@@ -123,9 +202,9 @@ export function MosqueDetail({ mosque }: MosqueDetailProps) {
               </div>
               <div className="space-y-3">
                 <div className="flex flex-col sm:flex-row items-center gap-3">
-                  <h1 className="text-3xl sm:text-4xl font-black text-foreground tracking-tighter leading-none">{mosque.name}</h1>
+                  <h1 className="text-3xl sm:text-4xl font-bold text-foreground underline decoration-primary decoration-2 underline-offset-8 tracking-tighter leading-none">{mosque.name}</h1>
                   {mosque.isVerified && (
-                    <Badge className="gap-1.5 bg-emerald-500/10 text-emerald-600 border-emerald-500/20 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                    <Badge className="gap-1.5 bg-emerald-500/10 text-emerald-600 border-emerald-500/20 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">
                       <CheckCircle className="h-3.5 w-3.5 fill-emerald-500/10" />
                       Verified
                     </Badge>
@@ -183,7 +262,7 @@ export function MosqueDetail({ mosque }: MosqueDetailProps) {
               <TabsContent value="about" className="mt-6 space-y-6 px-4 sm:px-0">
                 <Card className="border-border/40 shadow-sm rounded-2xl overflow-hidden">
                   <CardHeader className="bg-muted/30 pb-4 border-b border-border/40">
-                    <CardTitle className="text-lg font-black tracking-tight flex items-center gap-2">
+                    <CardTitle className="text-lg font-bold tracking-tight flex items-center gap-2">
                        <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                           <Building2 className="h-4 w-4" />
                        </div>
@@ -199,7 +278,7 @@ export function MosqueDetail({ mosque }: MosqueDetailProps) {
 
                 <Card className="border-border/40 shadow-sm rounded-2xl overflow-hidden">
                    <CardHeader className="bg-muted/30 pb-4 border-b border-border/40">
-                    <CardTitle className="text-lg font-black tracking-tight flex items-center gap-2">
+                    <CardTitle className="text-lg font-bold tracking-tight flex items-center gap-2">
                        <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                           <ShieldCheck className="h-4 w-4" />
                        </div>
@@ -220,7 +299,7 @@ export function MosqueDetail({ mosque }: MosqueDetailProps) {
                 {/* Map Section */}
                 <Card className="border-border/40 shadow-sm rounded-2xl overflow-hidden">
                    <CardHeader className="bg-muted/30 pb-4 border-b border-border/40">
-                    <CardTitle className="text-lg font-black tracking-tight flex items-center gap-2">
+                    <CardTitle className="text-lg font-bold tracking-tight flex items-center gap-2">
                        <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                           <MapPin className="h-4 w-4" />
                        </div>
@@ -275,7 +354,7 @@ export function MosqueDetail({ mosque }: MosqueDetailProps) {
                   <Card className="border-dashed border-border/40 py-20">
                     <CardContent className="text-center">
                       <Users className="h-16 w-16 mx-auto text-muted-foreground/20 mb-4" />
-                      <p className="text-muted-foreground font-bold italic">No management directory available yet</p>
+                      <p className="text-muted-foreground font-bold">No management directory available yet</p>
                     </CardContent>
                   </Card>
                 ) : (
@@ -418,29 +497,55 @@ export function MosqueDetail({ mosque }: MosqueDetailProps) {
           <div className="space-y-6 sm:space-y-8 px-4 sm:px-0 mt-8 lg:mt-0">
             {/* Today's Prayer Times Widget */}
             {prayerTimes && (
-              <Card className="border-border/40 shadow-2xl shadow-primary/5 rounded-[2rem] overflow-hidden sticky top-[80px]">
-                <CardHeader className="bg-gradient-to-br from-primary to-primary/90 text-primary-foreground p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                       <h3 className="text-xl font-black tracking-tighter italic">Iqamah Times</h3>
-                       <p className="text-[10px] uppercase font-black tracking-[0.3em] opacity-80 mt-1">Today's Schedule</p>
-                    </div>
-                    <div className="h-12 w-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/20">
-                       <Clock className="h-6 w-6 text-white" />
-                    </div>
+              <Card className="border-border/40 shadow-sm rounded-2xl overflow-hidden bg-card/60 backdrop-blur-md sticky top-[80px]">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-primary" />
+                    <h3 className="text-lg font-bold tracking-tight">Prayer Times</h3>
                   </div>
                 </CardHeader>
-                <CardContent className="p-3 space-y-1.5 mt-2 pb-6">
-                  <PrayerTimeRow label="Fajr" time={prayerTimes.fajr} iqama={prayerTimes.fajrIqama} />
-                  <PrayerTimeRow label="Dhuhr" time={prayerTimes.dhuhr} iqama={prayerTimes.dhuhrIqama} />
-                  <PrayerTimeRow label="Asr" time={prayerTimes.asr} iqama={prayerTimes.asrIqama} />
-                  <PrayerTimeRow label="Maghrib" time={prayerTimes.maghrib} iqama={prayerTimes.maghribIqama} />
-                  <PrayerTimeRow label="Isha" time={prayerTimes.isha} iqama={prayerTimes.ishaIqama} />
-                  {prayerTimes.jummah && (
-                    <div className="mt-4 pt-4 border-t border-border/40 px-2">
-                      <PrayerTimeRow label="Jummah" time={prayerTimes.jummah} iqama={prayerTimes.jummahIqama} isSpecial />
+                <CardContent className="p-5 space-y-6">
+                  {/* Digital Clock and Date */}
+                  <div className="bg-muted/20 rounded-2xl p-6 text-center shadow-inner">
+                    <div className="text-4xl font-bold tracking-tight text-foreground lining-nums">
+                      {format(currentTime, 'hh:mm:ss a')}
+                    </div>
+                    <div className="text-xs text-muted-foreground font-semibold mt-1">
+                      {format(currentTime, 'EEEE, LLLL d, yyyy')}
+                    </div>
+                  </div>
+
+                  {/* Next Prayer Alert */}
+                  {nextPrayer && (
+                    <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-4">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">
+                        Next Prayer {nextPrayer.isTomorrow ? 'Tomorrow' : ''}
+                      </p>
+                      <h4 className="text-lg font-bold text-emerald-700 tracking-tight">
+                        {nextPrayer.name} at {nextPrayer.time}
+                      </h4>
                     </div>
                   )}
+
+                  {/* Prayer List */}
+                  <div className="space-y-0.5">
+                    {getPrayerTimesArray().map((p) => (
+                      <PrayerTimeRow 
+                        key={p.name}
+                        label={p.name} 
+                        time={p.time} 
+                        arabicLabel={p.arabic} 
+                        icon={p.icon} 
+                        isCurrent={currentPrayerName === p.name}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Footer Action */}
+                  <Button variant="outline" className="w-full rounded-xl font-bold h-11 gap-2 active:scale-[0.98] transition-all group">
+                    View Full Schedule
+                    <ArrowUpRight className="h-4 w-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                  </Button>
                 </CardContent>
               </Card>
             )}
@@ -448,7 +553,7 @@ export function MosqueDetail({ mosque }: MosqueDetailProps) {
             {/* Contact Card */}
             <Card className="border-border/40 shadow-sm rounded-3xl overflow-hidden">
                <CardHeader className="pb-3 px-6 pt-6">
-                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Connect With Mosque</h4>
+                  <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Connect With Mosque</h4>
                </CardHeader>
                <CardContent className="px-3 pb-3">
                   <div className="space-y-1">
@@ -495,21 +600,40 @@ export function MosqueDetail({ mosque }: MosqueDetailProps) {
   )
 }
 
-function PrayerTimeRow({ label, time, iqama, isSpecial }: { label: string; time: string; iqama?: string; isSpecial?: boolean }) {
+function PrayerTimeRow({ 
+  label, 
+  time, 
+  arabicLabel, 
+  icon, 
+  isCurrent 
+}: { 
+  label: string; 
+  time: string; 
+  arabicLabel: string; 
+  icon: React.ReactNode; 
+  isCurrent?: boolean 
+}) {
   return (
     <div className={cn(
-      "flex items-center justify-between p-3 rounded-xl transition-all",
-      isSpecial ? "bg-white/10 text-white" : "hover:bg-muted/50"
+      "flex items-center justify-between px-3.5 py-3 rounded-xl transition-all duration-300",
+      isCurrent ? "bg-emerald-500/5 text-emerald-800 shadow-sm border border-emerald-500/10" : "text-muted-foreground/60 hover:text-foreground"
     )}>
-      <span className="font-bold text-sm tracking-tight">{label}</span>
+      <div className="flex items-center gap-4">
+        <div className={cn(
+          "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
+          isCurrent ? "bg-emerald-500/20" : "bg-muted/50 group-hover:bg-muted"
+        )}>
+          {icon}
+        </div>
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-[15px] tracking-tight">{label}</span>
+            <span className="text-[10px] font-medium opacity-40">{arabicLabel}</span>
+          </div>
+        </div>
+      </div>
       <div className="text-right">
-        <span className="font-black text-sm tracking-tighter">{time}</span>
-        {iqama && (
-          <span className={cn(
-            "text-[10px] font-bold ml-2",
-            isSpecial ? "text-white/60" : "text-muted-foreground/60"
-          )}>(Iqama: {iqama})</span>
-        )}
+        <span className="font-bold text-[15px] tracking-tight">{time}</span>
       </div>
     </div>
   )
@@ -545,7 +669,7 @@ function ImamProfile({ imam, mosqueId }: { imam: Imam; mosqueId: string }) {
           <div className="relative group overflow-hidden bg-muted/30 sm:bg-transparent">
             <Avatar className="h-48 w-full sm:h-32 sm:w-32 rounded-none sm:rounded-2xl transition-transform duration-500 group-hover:scale-110">
               <AvatarImage src={imam.photoUrl} alt={imam.name} className="object-cover" />
-              <AvatarFallback className="rounded-none sm:rounded-2xl text-4xl sm:text-2xl bg-primary/10 text-primary font-black">
+              <AvatarFallback className="rounded-none sm:rounded-2xl text-4xl sm:text-2xl bg-primary/10 text-primary font-bold">
                 {imam.name.split(' ').map(n => n[0]).join('')}
               </AvatarFallback>
             </Avatar>
@@ -565,7 +689,7 @@ function ImamProfile({ imam, mosqueId }: { imam: Imam; mosqueId: string }) {
                   <Badge variant="secondary" className="font-bold tracking-tight">{imam.title}</Badge>
                 </div>
               </div>
-              <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+              <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">
                 {imam.yearsOfExperience}+ Years Exp
               </Badge>
             </div>
@@ -653,14 +777,14 @@ function ImamProfile({ imam, mosqueId }: { imam: Imam; mosqueId: string }) {
                       <div>
                         <h4 className="font-bold text-sm">{edu.degree} in {edu.field}</h4>
                         <p className="text-xs text-muted-foreground font-medium">{edu.institution}</p>
-                        <p className="text-[10px] text-muted-foreground/60 font-black uppercase tracking-widest mt-1.5">{edu.location} • {edu.year}</p>
+                        <p className="text-[10px] text-muted-foreground/60 font-bold uppercase tracking-widest mt-1.5">{edu.location} • {edu.year}</p>
                       </div>
                     </div>
                   ))}
                   
                   {imam.certifications && imam.certifications.length > 0 && (
                     <div className="mt-4 pt-4 border-t border-border/40">
-                      <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-3 ml-1">Certifications</h4>
+                      <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 mb-3 ml-1">Certifications</h4>
                       <div className="flex flex-wrap gap-2">
                         {imam.certifications.map((cert, index) => (
                           <Badge key={index} variant="outline" className="rounded-lg border-border/60 bg-muted/10 font-bold px-3 py-1">{cert}</Badge>
@@ -685,7 +809,7 @@ function ImamProfile({ imam, mosqueId }: { imam: Imam; mosqueId: string }) {
               <AccordionContent className="pb-4">
                 <div className="grid gap-6 pt-2">
                   <div>
-                     <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-3 ml-1">Expertise</h4>
+                     <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 mb-3 ml-1">Expertise</h4>
                     <div className="flex flex-wrap gap-2">
                       {imam.specializations.map((spec, index) => (
                         <Badge key={index} className="bg-primary/5 text-primary border-primary/20 font-bold px-4 py-1.5 rounded-xl">{spec}</Badge>
@@ -694,7 +818,7 @@ function ImamProfile({ imam, mosqueId }: { imam: Imam; mosqueId: string }) {
                   </div>
                   
                   <div className="pt-4 border-t border-border/40">
-                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-3 ml-1">Languages</h4>
+                    <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 mb-3 ml-1">Languages</h4>
                     <div className="flex flex-wrap gap-3">
                       {imam.languages.map((lang, index) => (
                         <div key={index} className="flex items-center gap-2 text-sm font-bold bg-muted/40 px-4 py-2 rounded-xl border border-border/40">
@@ -776,7 +900,7 @@ function ManagementMemberCard({ member, mosqueId }: { member: ManagementMember; 
         <div className="relative shrink-0">
           <Avatar className="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl border-2 border-primary/5 shadow-inner transition-transform group-hover:scale-105 duration-500">
             <AvatarImage src={member.photoUrl} alt={member.name} className="object-cover" />
-            <AvatarFallback className="rounded-2xl bg-primary/5 text-primary text-xl font-black">
+            <AvatarFallback className="rounded-2xl bg-primary/5 text-primary text-xl font-bold">
               {member.name.split(' ').map(n => n[0]).join('')}
             </AvatarFallback>
           </Avatar>
@@ -786,9 +910,9 @@ function ManagementMemberCard({ member, mosqueId }: { member: ManagementMember; 
         <div className="flex-1 min-w-0 flex flex-col justify-center">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2">
             <Link href={`/mosques/${mosqueId}/management/${member.id}`} className="hover:text-primary transition-colors block">
-              <h4 className="text-base sm:text-lg font-black truncate tracking-tight leading-tight">{member.name}</h4>
+              <h4 className="text-base sm:text-lg font-bold truncate tracking-tight leading-tight">{member.name}</h4>
             </Link>
-            <Badge variant="secondary" className="w-fit text-[9px] font-black uppercase tracking-widest bg-muted/60 text-muted-foreground border-transparent rounded-lg px-2 py-0.5">
+            <Badge variant="secondary" className="w-fit text-[9px] font-bold uppercase tracking-widest bg-muted/60 text-muted-foreground border-transparent rounded-lg px-2 py-0.5">
               {positionLabels[member.position] || member.position}
             </Badge>
           </div>
@@ -812,7 +936,7 @@ function ManagementMemberCard({ member, mosqueId }: { member: ManagementMember; 
 
           <div className="mt-4 sm:mt-2 flex items-center justify-between sm:justify-start gap-4">
             <Link href={`/mosques/${mosqueId}/management/${member.id}`} className="flex-1 sm:flex-none">
-              <Button variant="outline" size="sm" className="w-full sm:w-auto text-[11px] font-black uppercase tracking-widest h-9 rounded-xl border-border/60 hover:bg-primary/5 hover:text-primary hover:border-primary/20 transition-all active:scale-95">
+              <Button variant="outline" size="sm" className="w-full sm:w-auto text-[11px] font-bold uppercase tracking-widest h-9 rounded-xl border-border/60 hover:bg-primary/5 hover:text-primary hover:border-primary/20 transition-all active:scale-95">
                 View Bio
               </Button>
             </Link>

@@ -87,7 +87,7 @@ export default function MosqueRegistrationPage() {
                   </p>
                 </div>
                 <div className="bg-primary/5 rounded-2xl p-6 border border-primary/10">
-                  <blockquote className="italic text-lg text-primary/80 font-medium">
+                  <blockquote className="text-lg text-primary/80 font-medium">
                     "Since joining MosqueConnect, our congregation has grown by 30% and communication 
                     has never been easier. It's truly a game-changer for our masjid."
                   </blockquote>

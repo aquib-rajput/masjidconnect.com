@@ -342,7 +342,7 @@ function PostCard({
               <div className="relative">
                 <Avatar className="h-12 w-12 border-2 border-background shadow-sm">
                   <AvatarImage src={post.profiles?.avatar_url} alt={post.profiles?.full_name} className="object-cover" />
-                  <AvatarFallback className="bg-primary/5 text-primary font-black">
+                  <AvatarFallback className="bg-primary/5 text-primary font-bold">
                     {post.profiles?.full_name?.[0] || 'U'}
                   </AvatarFallback>
                 </Avatar>
@@ -363,7 +363,7 @@ function PostCard({
                 {role && role !== 'member' && role !== 'user' && (
                   <>
                     <span className="opacity-40">·</span>
-                    <Badge variant="secondary" className="h-4 px-1.5 text-[9px] font-black uppercase tracking-widest bg-primary/5 text-primary/80 border-transparent rounded-[4px] gap-1">
+                    <Badge variant="secondary" className="h-4 px-1.5 text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary/80 border-transparent rounded-[4px] gap-1">
                       {getRoleIcon(role)}
                       {role}
                     </Badge>
@@ -409,7 +409,7 @@ function PostCard({
       <CardContent className="pb-4 px-5">
         {post.post_type && post.post_type !== 'text' && post.post_type !== 'image' && (
           <div className="mb-4">
-            <Badge variant="outline" className="gap-2 h-7 px-3 text-[10px] font-black uppercase tracking-widest border-primary/20 bg-primary/5 text-primary rounded-lg">
+            <Badge variant="outline" className="gap-2 h-7 px-3 text-[10px] font-bold uppercase tracking-widest border-primary/20 bg-primary/5 text-primary rounded-lg">
               {getPostTypeIcon(post.post_type)}
               {post.post_type.replace('-', ' ')}
             </Badge>
@@ -442,7 +442,7 @@ function PostCard({
         {post.metadata && post.metadata.quoteSource && (
           <div className="mt-4 border-l-4 border-primary/20 pl-4 py-2 bg-primary/5 rounded-r-xl">
             <Quote className="h-6 w-6 text-primary/10 mb-1" />
-            <p className="text-xs text-muted-foreground font-black uppercase tracking-[0.2em]">
+            <p className="text-xs text-muted-foreground font-bold uppercase tracking-[0.2em]">
               — {post.metadata.quoteSource}
             </p>
           </div>
@@ -462,7 +462,7 @@ function PostCard({
 
       <CardFooter className="flex flex-col pt-0 pb-5 px-5">
         {/* Stats */}
-        <div className="flex items-center justify-between w-full py-3 border-y border-border/30 text-[11px] font-black uppercase tracking-widest text-muted-foreground/60 mb-2">
+        <div className="flex items-center justify-between w-full py-3 border-y border-border/30 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60 mb-2">
           <div className="flex items-center gap-4">
              <span className="hover:text-primary transition-colors cursor-pointer">{localLikesCount || 0} Likes</span>
              <span className="hover:text-primary transition-colors cursor-pointer">{post.comments_count || 0} Comments</span>
@@ -573,8 +573,8 @@ function PostCard({
                          <p className="text-sm font-medium text-foreground/80 tracking-tight leading-relaxed">{comment.content}</p>
                        </div>
                        <div className="flex items-center gap-4 mt-2 ml-2">
-                          <button className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 hover:text-primary transition-colors">Like</button>
-                          <button className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 hover:text-primary transition-colors">Reply</button>
+                          <button className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 hover:text-primary transition-colors">Like</button>
+                          <button className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 hover:text-primary transition-colors">Reply</button>
                        </div>
                     </div>
                   </div>
@@ -583,7 +583,7 @@ function PostCard({
             ) : (
               <div className="text-center py-8">
                  <MessageCircle className="h-10 w-10 text-muted-foreground/10 mx-auto mb-2" />
-                 <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">Be the first to share a thought</p>
+                 <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40">Be the first to share a thought</p>
               </div>
             )}
           </div>
@@ -863,7 +863,7 @@ export function EnhancedSocialFeed() {
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="gap-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground/80 hover:bg-primary/5 hover:text-primary rounded-xl px-3 h-9 transition-all active:scale-95"
+                    className="gap-2 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/80 hover:bg-primary/5 hover:text-primary rounded-xl px-3 h-9 transition-all active:scale-95"
                     onClick={() => { setNewPostType('image'); setIsCreateDialogOpen(true) }}
                   >
                     <div className="p-1.5 rounded-lg bg-primary/5">
@@ -874,7 +874,7 @@ export function EnhancedSocialFeed() {
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="gap-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground/80 hover:bg-amber-500/5 hover:text-amber-600 rounded-xl px-3 h-9 transition-all active:scale-95"
+                    className="gap-2 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/80 hover:bg-amber-500/5 hover:text-amber-600 rounded-xl px-3 h-9 transition-all active:scale-95"
                     onClick={() => { setNewPostType('event'); setIsCreateDialogOpen(true) }}
                   >
                     <div className="p-1.5 rounded-lg bg-amber-500/5">
@@ -885,7 +885,7 @@ export function EnhancedSocialFeed() {
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="gap-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground/80 hover:bg-rose-500/5 hover:text-rose-600 rounded-xl px-3 h-9 transition-all active:scale-95"
+                    className="gap-2 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/80 hover:bg-rose-500/5 hover:text-rose-600 rounded-xl px-3 h-9 transition-all active:scale-95"
                     onClick={() => { setNewPostType('prayer-request'); setIsCreateDialogOpen(true) }}
                   >
                     <div className="p-1.5 rounded-lg bg-rose-500/5">
@@ -896,7 +896,7 @@ export function EnhancedSocialFeed() {
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="gap-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground/80 hover:bg-teal-500/5 hover:text-teal-600 rounded-xl px-3 h-9 transition-all active:scale-95 hidden sm:inline-flex"
+                    className="gap-2 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/80 hover:bg-teal-500/5 hover:text-teal-600 rounded-xl px-3 h-9 transition-all active:scale-95 hidden sm:inline-flex"
                     onClick={() => { setNewPostType('quote'); setIsCreateDialogOpen(true) }}
                   >
                     <div className="p-1.5 rounded-lg bg-teal-500/5">
@@ -917,7 +917,7 @@ export function EnhancedSocialFeed() {
               <TabsTrigger 
                 value="all" 
                 className={cn(
-                  "rounded-2xl px-6 h-10 font-black text-[11px] uppercase tracking-widest transition-all",
+                  "rounded-2xl px-6 h-10 font-bold text-[11px] uppercase tracking-widest transition-all",
                   "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/20",
                   "bg-card/40 border border-border/40 text-muted-foreground/60 hover:bg-muted/50"
                 )}
@@ -925,7 +925,7 @@ export function EnhancedSocialFeed() {
               <TabsTrigger 
                 value="islamic" 
                 className={cn(
-                  "rounded-2xl px-6 h-10 font-black text-[11px] uppercase tracking-widest transition-all",
+                  "rounded-2xl px-6 h-10 font-bold text-[11px] uppercase tracking-widest transition-all",
                   "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/20",
                   "bg-card/40 border border-border/40 text-muted-foreground/60 hover:bg-muted/50"
                 )}
@@ -933,7 +933,7 @@ export function EnhancedSocialFeed() {
               <TabsTrigger 
                 value="community" 
                 className={cn(
-                  "rounded-2xl px-6 h-10 font-black text-[11px] uppercase tracking-widest transition-all",
+                  "rounded-2xl px-6 h-10 font-bold text-[11px] uppercase tracking-widest transition-all",
                   "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/20",
                   "bg-card/40 border border-border/40 text-muted-foreground/60 hover:bg-muted/50"
                 )}
@@ -941,7 +941,7 @@ export function EnhancedSocialFeed() {
               <TabsTrigger 
                 value="event" 
                 className={cn(
-                  "rounded-2xl px-6 h-10 font-black text-[11px] uppercase tracking-widest transition-all",
+                  "rounded-2xl px-6 h-10 font-bold text-[11px] uppercase tracking-widest transition-all",
                   "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/20",
                   "bg-card/40 border border-border/40 text-muted-foreground/60 hover:bg-muted/50"
                 )}
@@ -949,7 +949,7 @@ export function EnhancedSocialFeed() {
               <TabsTrigger 
                 value="saved" 
                 className={cn(
-                  "rounded-2xl px-6 h-10 font-black text-[11px] uppercase tracking-widest transition-all gap-2",
+                  "rounded-2xl px-6 h-10 font-bold text-[11px] uppercase tracking-widest transition-all gap-2",
                   "data-[state=active]:bg-amber-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-amber-500/20",
                   "bg-card/40 border border-border/40 text-muted-foreground/60 hover:bg-muted/50"
                 )}

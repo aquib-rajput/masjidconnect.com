@@ -221,7 +221,7 @@ export function ManagementMemberDetailView({ mosque, member }: ManagementMemberD
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <blockquote className="italic text-muted-foreground leading-relaxed border-l-4 border-primary pl-4">
+                  <blockquote className="text-muted-foreground leading-relaxed border-l-4 border-primary pl-4">
                     "{member.personalStatement}"
                   </blockquote>
                 </CardContent>

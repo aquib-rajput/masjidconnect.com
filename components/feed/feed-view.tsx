@@ -635,7 +635,7 @@ function PostCard({
 
         {/* Quote source */}
         {post.quoteSource && (
-          <p className="mt-2 text-xs text-muted-foreground italic">
+          <p className="mt-2 text-xs text-muted-foreground">
             — {post.quoteSource}
           </p>
         )}

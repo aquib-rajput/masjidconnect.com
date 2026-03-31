@@ -516,7 +516,7 @@ function MosqueCard({ mosque }: { mosque: Mosque }) {
            </div>
            <div className="absolute top-4 right-4">
               {mosque.isVerified && (
-                <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 backdrop-blur-md px-2 py-0.5 rounded-lg flex items-center gap-1 font-black text-[10px] uppercase tracking-widest">
+                <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 backdrop-blur-md px-2 py-0.5 rounded-lg flex items-center gap-1 font-bold text-[10px] uppercase tracking-widest">
                    <CheckCircle className="h-3 w-3" />
                    Verified
                 </Badge>
@@ -526,7 +526,7 @@ function MosqueCard({ mosque }: { mosque: Mosque }) {
 
         <CardContent className="p-6">
           <div className="flex items-start justify-between gap-4">
-            <h3 className="text-xl font-black text-foreground group-hover:text-primary transition-colors line-clamp-1 tracking-tight">
+            <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 tracking-tight">
               {mosque.name}
             </h3>
           </div>
@@ -545,7 +545,7 @@ function MosqueCard({ mosque }: { mosque: Mosque }) {
           <div className="mt-6 flex items-center justify-between border-t border-border/40 pt-4">
             <div className="flex items-center gap-1.5">
                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-               <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Open Now</span>
+               <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Open Now</span>
             </div>
             <div className="flex items-center gap-3">
                <Badge variant="secondary" className="bg-muted/40 text-muted-foreground font-bold px-2 rounded-lg text-[10px]">

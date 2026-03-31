@@ -172,7 +172,7 @@ export function Header() {
                   <DropdownMenuContent align="end" className="w-60 rounded-2xl border-border/60 p-2 shadow-xl">
                     <div className="px-3 py-3 mb-1 bg-muted/30 rounded-xl">
                       <p className="text-sm font-bold truncate">{profile?.full_name || 'User'}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mt-0.5 opacity-70">
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mt-0.5 opacity-70">
                         {profile?.role || 'Member'} Role
                       </p>
                       <p className="text-xs text-muted-foreground truncate mt-1.5 opacity-80">{user.email}</p>
@@ -265,7 +265,7 @@ export function Header() {
 
             {user && (isShura || isAdmin) && (
               <div className="space-y-1.5 mb-4">
-                <p className="px-4 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-2">Management</p>
+                <p className="px-4 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 mb-2">Management</p>
                 {isShura && (
                   <Link
                     href="/shura"

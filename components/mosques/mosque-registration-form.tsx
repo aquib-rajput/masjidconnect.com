@@ -298,7 +298,7 @@ export function MosqueRegistrationForm() {
               "Submit Registration"
             )}
           </Button>
-          <p className="text-[10px] text-muted-foreground uppercase font-black tracking-[0.2em] opacity-60">
+          <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-[0.2em] opacity-60">
             Secure Verification Process
           </p>
         </div>

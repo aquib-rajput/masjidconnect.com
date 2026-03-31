@@ -734,7 +734,7 @@ export function MessagesView() {
                       <Send className="h-12 w-12 text-primary opacity-60 -rotate-12 group-hover:opacity-100 transition-opacity" />
                     </div>
                   </div>
-                  <h3 className="text-3xl font-black text-foreground mb-4 italic tracking-tighter">Salam!</h3>
+                  <h3 className="text-3xl font-bold text-foreground mb-4 tracking-tighter">Salam!</h3>
                   <p className="text-muted-foreground text-sm max-w-[280px] leading-relaxed font-medium">
                     Break the ice! Start the conversation by sending a warm greeting below.
                   </p>
@@ -768,7 +768,7 @@ export function MessagesView() {
                           {showDateHeader && (
                             <div className="flex items-center gap-3 w-full mb-2">
                               <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-border/40" />
-                              <span className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] opacity-60">
+                              <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-[0.2em] opacity-60">
                                 {isToday(messageDate) ? "Today" : isYesterday(messageDate) ? "Yesterday" : format(messageDate, "MMMM d, yyyy")}
                               </span>
                               <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-border/40" />
@@ -786,7 +786,7 @@ export function MessagesView() {
                         {showDateHeader && (
                           <div className="flex items-center gap-3 w-full my-6">
                             <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-border/40" />
-                            <span className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] opacity-60">
+                            <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-[0.2em] opacity-60">
                                 {isToday(messageDate) ? "Today" : isYesterday(messageDate) ? "Yesterday" : format(messageDate, "MMMM d, yyyy")}
                             </span>
                             <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-border/40" />
@@ -809,7 +809,7 @@ export function MessagesView() {
                           )}
                           <div className={cn("max-w-[85%] sm:max-w-[75%] flex flex-col", isOwn && "items-end")}>
                             {showAvatar && !isOwn && (
-                              <p className="mb-1 ml-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">{msg.sender?.full_name}</p>
+                              <p className="mb-1 ml-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">{msg.sender?.full_name}</p>
                             )}
                             <div
                               className={cn(
@@ -917,7 +917,7 @@ export function MessagesView() {
               ) : (
                 <div className="bg-amber-500/5 rounded-2xl border-2 border-dashed border-amber-500/20 p-5 text-center shadow-inner">
                   <Megaphone className="h-6 w-6 text-amber-500 opacity-40 mx-auto mb-2" />
-                  <p className="text-[10px] text-amber-600 font-black uppercase tracking-[0.2em] leading-relaxed">
+                  <p className="text-[10px] text-amber-600 font-bold uppercase tracking-[0.2em] leading-relaxed">
                     Broadcast Mode Only<br/>
                     <span className="opacity-60 lowercase font-medium tracking-normal text-xs">Only authorized imams & admins can send messages here</span>
                   </p>

@@ -220,7 +220,7 @@ export function ImamDetailView({ imam, mosque }: ImamDetailViewProps) {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <blockquote className="italic text-muted-foreground leading-relaxed border-l-4 border-primary pl-4">
+                      <blockquote className="text-muted-foreground leading-relaxed border-l-4 border-primary pl-4">
                         "{imam.personalMessage}"
                       </blockquote>
                     </CardContent>
