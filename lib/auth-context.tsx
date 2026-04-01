@@ -1,8 +1,8 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { useUser, useAuth as useClerkAuth } from "@clerk/nextjs";
 import { createClient } from "@/lib/supabase/client";
-import type { User, Session } from "@supabase/supabase-js";
 
 export type UserRole = "admin" | "shura" | "imam" | "member";
 
@@ -23,8 +23,8 @@ export interface Profile {
 }
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: { id: string; email?: string } | null;
+  session: { id: string } | null;
   profile: Profile | null;
   loading: boolean;
   signOut: () => Promise<void>;
@@ -34,43 +34,59 @@ interface AuthContextType {
   isImam: boolean;
   isMember: boolean;
   hasRole: (roles: UserRole[]) => boolean;
+  isSignedIn: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const { user: clerkUser, isLoaded: clerkLoaded, isSignedIn } = useUser();
+  const { signOut: clerkSignOut, getToken } = useClerkAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-
   const supabase = createClient();
 
-  const fetchProfile = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
+  // Simplified user object compatible with existing code
+  const user = clerkUser
+    ? {
+        id: clerkUser.id,
+        email: clerkUser.primaryEmailAddress?.emailAddress,
+      }
+    : null;
 
-    if (error) {
+  // Simplified session object
+  const session = isSignedIn ? { id: clerkUser?.id || "" } : null;
+
+  const fetchProfile = useCallback(async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("clerk_id", userId)
+        .single();
+
+      if (error && error.code !== "PGRST116") {
+        console.error("Error fetching profile:", error);
+        return null;
+      }
+
+      return data as Profile | null;
+    } catch (error) {
       console.error("Error fetching profile:", error);
       return null;
     }
-
-    return data as Profile;
   }, [supabase]);
 
   const refreshProfile = useCallback(async () => {
-    if (user) {
-      const profileData = await fetchProfile(user.id);
+    if (clerkUser) {
+      const profileData = await fetchProfile(clerkUser.id);
       setProfile(profileData);
     }
-  }, [user, fetchProfile]);
+  }, [clerkUser, fetchProfile]);
 
   // Update user online status every 30 seconds
   useEffect(() => {
-    if (!user) return;
+    if (!clerkUser) return;
 
     const updateStatus = async () => {
       try {
@@ -84,56 +100,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const interval = setInterval(updateStatus, 30000);
 
     return () => clearInterval(interval);
-  }, [user]);
+  }, [clerkUser]);
 
-  // Initialize auth and listen for changes
+  // Fetch profile when Clerk user changes
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
-        
-        if (currentSession?.user) {
-          setSession(currentSession);
-          setUser(currentSession.user);
-          const profileData = await fetchProfile(currentSession.user.id);
-          setProfile(profileData);
-        }
-      } catch (error) {
-        console.error("Error initializing auth:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
-
-        if (newSession?.user) {
-          const profileData = await fetchProfile(newSession.user.id);
+    const loadProfile = async () => {
+      if (clerkLoaded) {
+        if (clerkUser) {
+          const profileData = await fetchProfile(clerkUser.id);
           setProfile(profileData);
         } else {
           setProfile(null);
         }
-
-        if (event === "SIGNED_OUT") {
-          setProfile(null);
-        }
+        setLoading(false);
       }
-    );
-
-    return () => {
-      subscription.unsubscribe();
     };
-  }, [supabase, fetchProfile]);
+
+    loadProfile();
+  }, [clerkLoaded, clerkUser, fetchProfile]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
+    await clerkSignOut();
     setProfile(null);
   };
 
@@ -146,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     session,
     profile,
-    loading,
+    loading: !clerkLoaded || loading,
     signOut,
     refreshProfile,
     isAdmin: profile?.role === "admin",
@@ -154,6 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isImam: profile?.role === "imam",
     isMember: profile?.role === "member",
     hasRole,
+    isSignedIn: !!isSignedIn,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

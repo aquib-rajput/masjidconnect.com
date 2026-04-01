@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser, getSupabaseAdmin } from "@/lib/auth-helpers";
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     
     const limit = parseInt(searchParams.get("limit") || "20");
@@ -42,14 +42,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const authUser = await getAuthenticatedUser();
     
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
+    if (!authUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const supabase = getSupabaseAdmin();
     const body = await request.json();
     const { content, mosque_id, image_url } = body;
 
@@ -63,7 +62,7 @@ export async function POST(request: NextRequest) {
     const { data: post, error } = await supabase
       .from("posts")
       .insert({
-        author_id: user.id,
+        author_id: authUser.profileId,
         content: content.trim(),
         mosque_id: mosque_id || null,
         image_url: image_url || null,

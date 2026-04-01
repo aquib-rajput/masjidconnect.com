@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
+import { useRealtimeMessages, useRealtimeConversations } from "@/lib/realtime";
+import { ConnectionStatusDot } from "@/components/realtime/connection-status";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -160,7 +162,7 @@ export function MessagesView() {
     }
   }, []);
 
-  // Set up realtime subscriptions
+  // Initialize conversations and handle URL params
   useEffect(() => {
     const init = async () => {
       const convos = await fetchConversations();
@@ -174,8 +176,8 @@ export function MessagesView() {
         router.replace('/messages?' + newParams.toString());
 
         // Find existing conversation with this user
-        const existingConvo = convos.find((c: any) => 
-          c.type === 'direct' && c.participants.some((p: any) => p.id === urlUserId)
+        const existingConvo = convos.find((c: Conversation) => 
+          c.type === 'direct' && c.participants.some((p) => p.id === urlUserId)
         );
 
         if (existingConvo) {
@@ -194,7 +196,7 @@ export function MessagesView() {
             const data = await res.json();
             if (data.conversation) {
               const updatedConvos = await fetchConversations();
-              const fullConv = updatedConvos.find((c: any) => c.id === data.conversation.id);
+              const fullConv = updatedConvos.find((c: Conversation) => c.id === data.conversation.id);
               if (fullConv) {
                 handleSelectConversation(fullConv);
               }
@@ -207,47 +209,28 @@ export function MessagesView() {
     };
 
     init();
+  }, [fetchConversations, searchParams, router, user]);
 
-    if (!user) return;
+  // Set up realtime subscriptions using centralized service
+  useRealtimeMessages(
+    selectedConversation?.id || null,
+    // On new message
+    useCallback((fullMessage: Message) => {
+      setMessages(prev => {
+        // Prevent duplicates
+        if (prev.find(m => m.id === fullMessage.id)) return prev;
+        return [...prev, fullMessage];
+      });
+    }, [])
+  );
 
-    // Subscribe to new messages and conversation updates
-    const channel = supabase
-      .channel("messages-realtime")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "messages" },
-        async (payload: any) => {
-          if (payload.eventType === "INSERT") {
-            const newMsg = payload.new as any;
-            if (selectedConversation?.id === newMsg.conversation_id) {
-              const { data: fullMessage } = await supabase
-                .from("messages")
-                .select(`*, sender:profiles!sender_id(id, full_name, avatar_url)`)
-                .eq("id", newMsg.id)
-                .single();
-
-              if (fullMessage) {
-                setMessages(prev => {
-                  if (prev.find(m => m.id === fullMessage.id)) return prev;
-                  return [...prev, fullMessage];
-                });
-              }
-            }
-          }
-          fetchConversations();
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "conversations" },
-        () => fetchConversations()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [fetchConversations, selectedConversation, supabase, user]);
+  // Subscribe to conversation list updates
+  useRealtimeConversations(
+    user?.id || null,
+    useCallback(() => {
+      fetchConversations();
+    }, [fetchConversations])
+  );
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -454,7 +437,10 @@ export function MessagesView() {
         selectedConversation ? "hidden md:flex" : "flex"
       )}>
         <div className="flex items-center justify-between border-b p-4">
-          <h2 className="text-lg font-semibold">Messages</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold">Messages</h2>
+            <ConnectionStatusDot />
+          </div>
           <Dialog open={showNewConversation} onOpenChange={setShowNewConversation}>
             <DialogTrigger asChild>
               <Button size="icon" variant="ghost">

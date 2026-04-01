@@ -4,6 +4,8 @@ import { useState, useCallback, useMemo, useEffect } from 'react'
 import useSWR from 'swr'
 import { useAuth } from '@/lib/auth-context'
 import { createClient } from '@/lib/supabase/client'
+import { useRealtimePosts, useRealtimeComments } from '@/lib/realtime'
+import { ConnectionStatus } from '@/components/realtime/connection-status'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardFooter } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -197,28 +199,19 @@ function PostCard({
     setShowComments(!showComments)
   }
 
-  // Subscribe to real-time comments when chat is open
-  useEffect(() => {
-    if (!showComments) return
-    const channel = supabase.channel(`comments-${post.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'post_comments', filter: `post_id=eq.${post.id}` }, async (payload: any) => {
-        const newC = payload.new as any;
-        setComments((prev: any[]) => {
-          if (prev.find(c => c.id === newC.id)) return prev;
-          supabase.from('post_comments').select(`*, profiles:author_id(id, full_name, avatar_url)`).eq('id', newC.id).single().then(({data}: any) => {
-            if (data) {
-              setComments((p: any[]) => {
-                if (p.find(c => c.id === data.id)) return p;
-                return [...p, data];
-              })
-            }
-          })
-          return prev;
-        })
-      }).subscribe()
-
-    return () => { supabase.removeChannel(channel) }
-  }, [showComments, post.id, supabase])
+  // Subscribe to real-time comments using centralized service
+  useRealtimeComments(
+    showComments ? post.id : null,
+    useCallback((newComment: any) => {
+      setComments((prev: any[]) => {
+        if (prev.find(c => c.id === newComment.id)) return prev;
+        return [...prev, newComment];
+      });
+    }, []),
+    useCallback((commentId: string) => {
+      setComments((prev: any[]) => prev.filter(c => c.id !== commentId));
+    }, [])
+  );
 
   const handleLike = async () => {
     if (!user) {
@@ -628,17 +621,12 @@ export function EnhancedSocialFeed() {
     }
   )
 
-  // Real-time synchronization
-  useEffect(() => {
-    const supabase = createClient()
-    const channel = supabase.channel('feed-updates-global')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => { mutateFeed() })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'post_likes' }, () => { mutateFeed() })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'post_comments' }, () => { mutateFeed() })
-      .subscribe()
-    
-    return () => { supabase.removeChannel(channel) }
-  }, [mutateFeed])
+  // Real-time synchronization using centralized service
+  useRealtimePosts(
+    useCallback(() => mutateFeed(), [mutateFeed]),
+    useCallback(() => mutateFeed(), [mutateFeed]),
+    useCallback(() => mutateFeed(), [mutateFeed])
+  );
 
   const { data: onlineUsersData } = useSWR(
     user ? '/api/users/online' : null,

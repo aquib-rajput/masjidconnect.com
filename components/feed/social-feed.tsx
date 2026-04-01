@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
+import { useRealtimePosts } from "@/lib/realtime";
+import { ConnectionStatus } from "@/components/realtime/connection-status";
 import useSWR, { mutate } from "swr";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -417,24 +419,13 @@ function FeedContent({ user, profile }: { user: any; profile: any }) {
   const [loadingComments, setLoadingComments] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
-
-  // Realtime subscription for posts
-  useEffect(() => {
-    const channel = supabase
-      .channel("posts-realtime-feed")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "posts" },
-        () => {
-          mutatePosts();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [supabase, mutatePosts]);
+  
+  // Realtime subscription for posts using centralized service
+  useRealtimePosts(
+    useCallback(() => mutatePosts(), [mutatePosts]),
+    useCallback(() => mutatePosts(), [mutatePosts]),
+    useCallback(() => mutatePosts(), [mutatePosts])
+  );
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

@@ -1,20 +1,22 @@
-import { createClient } from '@/lib/supabase/server'
 import { type NextRequest, NextResponse } from 'next/server'
+import { getAuthenticatedUser, getSupabaseAdmin } from '@/lib/auth-helpers'
 
 export async function GET() {
   try {
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const authUser = await getAuthenticatedUser()
 
-    if (authError || !user) {
+    if (!authUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const supabase = getSupabaseAdmin()
+    const userId = authUser.profileId
 
     // Get all conversations the user is part of
     const { data: userParticipations, error: participationsError } = await supabase
       .from('conversation_participants')
       .select('conversation_id, role, last_read_at, is_muted')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
 
     if (participationsError) {
       console.error('Error fetching participations:', participationsError)
@@ -59,7 +61,7 @@ export async function GET() {
           .select('*', { count: 'exact', head: true })
           .eq('conversation_id', conversation.id)
           .gt('created_at', participation?.last_read_at || '1970-01-01')
-          .neq('sender_id', user.id)
+          .neq('sender_id', userId)
 
         // Get participants
         const { data: participants } = await supabase
@@ -102,12 +104,14 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const authUser = await getAuthenticatedUser()
 
-    if (authError || !user) {
+    if (!authUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const supabase = getSupabaseAdmin()
+    const userId = authUser.profileId
 
     const body = await request.json()
     const { name, type, participant_ids, image_url } = body
@@ -122,15 +126,15 @@ export async function POST(request: NextRequest) {
       }
       
       const otherUserId = participant_ids[0]
-      if (otherUserId === user.id) {
+      if (otherUserId === userId) {
         return NextResponse.json({ error: 'Cannot start a direct conversation with yourself' }, { status: 400 })
       }
 
       // Efficiently check for existing direct conversation
-      const { data: existing, error: checkError } = await supabase
+      const { data: existing } = await supabase
         .from('conversation_participants')
         .select('conversation_id, conversations!inner(type)')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('conversations.type', 'direct')
 
       if (existing && existing.length > 0) {
@@ -163,7 +167,7 @@ export async function POST(request: NextRequest) {
         name: type === 'direct' ? null : name,
         type,
         image_url,
-        created_by: user.id
+        created_by: userId
       })
       .select()
       .single()
@@ -175,7 +179,7 @@ export async function POST(request: NextRequest) {
 
     // Add participants (creator + invited)
     const allParticipants = [
-      { conversation_id: conversation.id, user_id: user.id, role: 'admin' },
+      { conversation_id: conversation.id, user_id: userId, role: 'admin' },
       ...(participant_ids || []).map((id: string) => ({
         conversation_id: conversation.id,
         user_id: id,

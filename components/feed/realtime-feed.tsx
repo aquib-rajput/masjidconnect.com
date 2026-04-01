@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
+import { useRealtimePosts, useRealtimeComments } from "@/lib/realtime";
+import { ConnectionStatus } from "@/components/realtime/connection-status";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -114,49 +116,32 @@ export function RealtimeFeed() {
     }
   }, [supabase, user]);
 
-  // Set up realtime subscription
+  // Initial fetch
   useEffect(() => {
     fetchPosts();
+  }, [fetchPosts]);
 
-    const channel = supabase
-      .channel("posts-realtime")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "posts" },
-        async (payload) => {
-          const { data: newPost } = await supabase
-            .from("posts")
-            .select(`*, author:profiles!author_id(id, full_name, avatar_url, username)`)
-            .eq("id", payload.new.id)
-            .single();
-          
-          if (newPost) {
-            setPosts(prev => [newPost, ...prev]);
-          }
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "posts" },
-        async (payload) => {
-          setPosts(prev => 
-            prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p)
-          );
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "posts" },
-        (payload) => {
-          setPosts(prev => prev.filter(p => p.id !== payload.old.id));
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [fetchPosts, supabase]);
+  // Set up realtime subscription using centralized service
+  useRealtimePosts(
+    // On new post
+    useCallback((newPost: Post) => {
+      setPosts(prev => {
+        // Prevent duplicates
+        if (prev.find(p => p.id === newPost.id)) return prev;
+        return [newPost, ...prev];
+      });
+    }, []),
+    // On update post
+    useCallback((updatedPost: any) => {
+      setPosts(prev =>
+        prev.map(p => p.id === updatedPost.id ? { ...p, ...updatedPost } : p)
+      );
+    }, []),
+    // On delete post
+    useCallback((postId: string) => {
+      setPosts(prev => prev.filter(p => p.id !== postId));
+    }, [])
+  );
 
   // Handle image selection
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -389,6 +374,11 @@ export function RealtimeFeed() {
 
   return (
     <div className="space-y-6">
+      {/* Connection Status */}
+      <div className="flex justify-end">
+        <ConnectionStatus showLabel />
+      </div>
+
       {/* Create Post */}
       {user && (
         <Card>
