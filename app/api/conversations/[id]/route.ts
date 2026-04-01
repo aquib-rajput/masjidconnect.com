@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedUser, createServiceClient } from '@/lib/auth-helpers'
 import { type NextRequest, NextResponse } from 'next/server'
 
 export async function DELETE(
@@ -6,21 +6,21 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const { user, profile, error: authError } = await getAuthenticatedUser()
 
-    if (authError || !user) {
+    if (authError || !user || !profile) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { id: conversationId } = await params
+    const supabase = createServiceClient()
 
     // 1. Check if user is a participant OR an admin
     const { data: participation, error: partError } = await supabase
       .from('conversation_participants')
       .select('role')
       .eq('conversation_id', conversationId)
-      .eq('user_id', user.id)
+      .eq('user_id', profile.id)
       .maybeSingle()
 
     if (partError || !participation) {

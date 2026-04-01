@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser, createServiceClient } from "@/lib/auth-helpers";
 
 export async function GET(
   request: NextRequest,
@@ -7,7 +7,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     const { data: mosque, error } = await supabase
       .from("mosques")
@@ -37,25 +37,18 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { user, profile, error: authError } = await getAuthenticatedUser();
     
-    if (authError || !user) {
+    if (authError || !user || !profile) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Check if user has admin or shura role
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile || !["admin", "shura"].includes(profile.role)) {
+    if (!["admin", "shura"].includes(profile.role || "")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const supabase = createServiceClient();
     const body = await request.json();
 
     const { data: mosque, error } = await supabase
@@ -84,24 +77,18 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { user, profile, error: authError } = await getAuthenticatedUser();
     
-    if (authError || !user) {
+    if (authError || !user || !profile) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Check if user has admin role
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile || profile.role !== "admin") {
+    if (profile.role !== "admin") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+
+    const supabase = createServiceClient();
 
     const { error } = await supabase
       .from("mosques")

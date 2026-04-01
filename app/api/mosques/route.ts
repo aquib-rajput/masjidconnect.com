@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser, createServiceClient } from "@/lib/auth-helpers";
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = createServiceClient();
     const { searchParams } = new URL(request.url);
     
     const limit = parseInt(searchParams.get("limit") || "20");
@@ -47,27 +47,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const { user, profile, error: authError } = await getAuthenticatedUser();
     
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
+    if (authError || !user || !profile) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user has admin or shura role
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
+    const isAdminOrShura = ["admin", "shura"].includes(profile.role || "");
 
-    if (!profile) {
-      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
-    }
-
-    const isAdminOrShura = ["admin", "shura"].includes(profile.role);
-
+    const supabase = createServiceClient();
     const body = await request.json();
     const {
       name,
@@ -114,7 +102,7 @@ export async function POST(request: NextRequest) {
         facilities,
         capacity,
         established_year,
-        admin_id: user.id,
+        admin_id: profile.id,
         is_verified: isAdminOrShura ? (body.is_verified ?? true) : false,
       })
       .select()

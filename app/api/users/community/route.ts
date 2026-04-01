@@ -1,25 +1,23 @@
-import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedUser, createServiceClient } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const supabase = await createClient()
-    
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const { user, profile, error: authError } = await getAuthenticatedUser()
 
-    if (!user) {
+    if (authError || !user || !profile) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const supabase = createServiceClient()
 
     // Get community members (limit to 20)
     const { data: members, error } = await supabase
       .from('profiles')
       .select('id, full_name, avatar_url, bio, profession, role')
-      .neq('id', user.id)
+      .neq('id', profile.id)
       .limit(20)
       .order('created_at', { ascending: false })
 

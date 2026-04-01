@@ -1,20 +1,17 @@
-import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedUser, createServiceClient } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
   try {
-    const supabase = await createClient()
-    
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const { user, profile, error: authError } = await getAuthenticatedUser()
 
-    if (!user) {
+    if (authError || !user || !profile) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const supabase = createServiceClient()
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '20')
     const offset = parseInt(searchParams.get('offset') || '0')
@@ -68,7 +65,7 @@ export async function GET(request: Request) {
         .from('post_likes')
         .select('post_id')
         .in('post_id', postIds)
-        .eq('user_id', user.id)
+        .eq('user_id', profile.id)
 
       if (!likesError) {
         userLikes = likes?.map(l => l.post_id) || []
@@ -78,7 +75,7 @@ export async function GET(request: Request) {
         .from('post_bookmarks')
         .select('post_id')
         .in('post_id', postIds)
-        .eq('user_id', user.id)
+        .eq('user_id', profile.id)
 
       if (!bookmarksError) {
         userBookmarks = bookmarks?.map(b => b.post_id) || []

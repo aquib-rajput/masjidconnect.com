@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedUser, createServiceClient } from '@/lib/auth-helpers'
 import { type NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
@@ -7,19 +7,20 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { user, profile, error: authError } = await getAuthenticatedUser()
 
-    if (!user) {
+    if (authError || !user || !profile) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const supabase = createServiceClient()
 
     // Verify user is a participant
     const { data: participant } = await supabase
       .from('conversation_participants')
       .select('id')
       .eq('conversation_id', id)
-      .eq('user_id', user.id)
+      .eq('user_id', profile.id)
       .single()
 
     if (!participant) {
@@ -58,7 +59,7 @@ export async function GET(
       .from('conversation_participants')
       .update({ last_read_at: new Date().toISOString() })
       .eq('conversation_id', id)
-      .eq('user_id', user.id)
+      .eq('user_id', profile.id)
 
     return NextResponse.json({ messages: messages?.reverse() || [] })
   } catch (error) {
@@ -73,19 +74,20 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { user, profile, error: authError } = await getAuthenticatedUser()
 
-    if (!user) {
+    if (authError || !user || !profile) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const supabase = createServiceClient()
 
     // Verify user is a participant
     const { data: participant } = await supabase
       .from('conversation_participants')
       .select('id')
       .eq('conversation_id', id)
-      .eq('user_id', user.id)
+      .eq('user_id', profile.id)
       .single()
 
     if (!participant) {
@@ -103,7 +105,7 @@ export async function POST(
       .from('messages')
       .insert({
         conversation_id: id,
-        sender_id: user.id,
+        sender_id: profile.id,
         content,
         message_type,
         image_url,

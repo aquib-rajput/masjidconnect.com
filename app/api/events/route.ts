@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser, createServiceClient } from "@/lib/auth-helpers";
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = createServiceClient();
     const { searchParams } = new URL(request.url);
     
     const limit = parseInt(searchParams.get("limit") || "20");
@@ -46,25 +46,18 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const { user, profile, error: authError } = await getAuthenticatedUser();
     
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
+    if (authError || !user || !profile) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Check if user has staff role
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile || !["admin", "shura", "imam"].includes(profile.role)) {
+    if (!["admin", "shura", "imam"].includes(profile.role || "")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const supabase = createServiceClient();
     const body = await request.json();
     const {
       mosque_id,
@@ -103,7 +96,7 @@ export async function POST(request: NextRequest) {
         recurrence_pattern,
         max_attendees,
         registration_required: registration_required || false,
-        created_by: user.id,
+        created_by: profile.id,
       })
       .select(`
         *,

@@ -1,17 +1,13 @@
-import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedUser, createServiceClient } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient()
-    
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const { user, profile, error: authError } = await getAuthenticatedUser()
 
-    if (!user) {
+    if (authError || !user || !profile) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -21,9 +17,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Post ID is required' }, { status: 400 })
     }
 
+    const supabase = createServiceClient()
+
     const { error } = await supabase
       .from('post_bookmarks')
-      .insert({ post_id: postId, user_id: user.id })
+      .insert({ post_id: postId, user_id: profile.id })
 
     if (error) {
       // If it already exists (code 23505 is unique violation in Postgres for PK), just return success
@@ -42,13 +40,9 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const supabase = await createClient()
-    
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const { user, profile, error: authError } = await getAuthenticatedUser()
 
-    if (!user) {
+    if (authError || !user || !profile) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -58,11 +52,13 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Post ID is required' }, { status: 400 })
     }
 
+    const supabase = createServiceClient()
+
     const { error } = await supabase
       .from('post_bookmarks')
       .delete()
       .eq('post_id', postId)
-      .eq('user_id', user.id)
+      .eq('user_id', profile.id)
 
     if (error) {
       throw error

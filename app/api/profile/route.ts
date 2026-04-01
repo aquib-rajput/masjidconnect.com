@@ -1,24 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser, createServiceClient } from "@/lib/auth-helpers";
 
 export async function GET() {
   try {
-    const supabase = await createClient();
+    const { user, profile, error } = await getAuthenticatedUser();
     
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
+    if (error || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { data: profile, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ profile });
@@ -32,11 +20,9 @@ export async function GET() {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const { user, profile: currentProfile, error: authError } = await getAuthenticatedUser();
     
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
+    if (authError || !user || !currentProfile) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -51,10 +37,11 @@ export async function PATCH(request: NextRequest) {
     if (phone !== undefined) updateData.phone = phone;
     if (bio !== undefined) updateData.bio = bio;
 
+    const supabase = createServiceClient();
     const { data: profile, error } = await supabase
       .from("profiles")
       .update(updateData)
-      .eq("id", user.id)
+      .eq("id", currentProfile.id)
       .select()
       .single();
 

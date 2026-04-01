@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser, createServiceClient } from "@/lib/auth-helpers";
 
 export async function GET(
   request: NextRequest,
@@ -7,7 +7,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     const { data: post, error } = await supabase
       .from("posts")
@@ -41,16 +41,16 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { user, profile, error: authError } = await getAuthenticatedUser();
     
-    if (authError || !user) {
+    if (authError || !user || !profile) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await request.json();
     const { content, image_url } = body;
+
+    const supabase = createServiceClient();
 
     // First check if user owns this post
     const { data: existingPost, error: fetchError } = await supabase
@@ -63,7 +63,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
 
-    if (existingPost.author_id !== user.id) {
+    if (existingPost.author_id !== profile.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -100,18 +100,19 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { user, profile, error: authError } = await getAuthenticatedUser();
     
-    if (authError || !user) {
+    if (authError || !user || !profile) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const supabase = createServiceClient();
 
     const { error } = await supabase
       .from("posts")
       .delete()
-      .eq("id", id);
+      .eq("id", id)
+      .eq("author_id", profile.id);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

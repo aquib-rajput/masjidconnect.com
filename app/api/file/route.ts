@@ -1,14 +1,13 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { get } from '@vercel/blob'
-import { createClient } from '@/lib/supabase/server'
+import { getAuthenticatedUser } from '@/lib/auth-helpers'
 
 export async function GET(request: NextRequest) {
   try {
     // Verify authentication
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { user, error: authError } = await getAuthenticatedUser()
     
-    if (!user) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

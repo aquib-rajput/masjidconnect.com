@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser, createServiceClient } from "@/lib/auth-helpers";
 
 export async function POST(
   request: NextRequest,
@@ -7,20 +7,20 @@ export async function POST(
 ) {
   try {
     const { id: postId } = await params;
-    const supabase = await createClient();
+    const { user, profile, error: authError } = await getAuthenticatedUser();
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
+    if (authError || !user || !profile) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const supabase = createServiceClient();
 
     // Check if already liked
     const { data: existingLike } = await supabase
       .from("post_likes")
       .select("id")
       .eq("post_id", postId)
-      .eq("user_id", user.id)
+      .eq("user_id", profile.id)
       .single();
 
     if (existingLike) {
@@ -35,24 +35,11 @@ export async function POST(
       .from("post_likes")
       .insert({
         post_id: postId,
-        user_id: user.id,
+        user_id: profile.id,
       });
 
     if (likeError) {
       return NextResponse.json({ error: likeError.message }, { status: 500 });
-    }
-
-    // Update likes count
-    const { error: updateError } = await supabase.rpc("increment_likes_count", {
-      post_id: postId,
-    });
-
-    if (updateError) {
-      // If RPC doesn't exist, update manually
-      await supabase
-        .from("posts")
-        .update({ likes_count: supabase.rpc("coalesce", { value: "likes_count", default_value: 0 }) })
-        .eq("id", postId);
     }
 
     return NextResponse.json({ success: true, liked: true });
@@ -70,19 +57,19 @@ export async function DELETE(
 ) {
   try {
     const { id: postId } = await params;
-    const supabase = await createClient();
+    const { user, profile, error: authError } = await getAuthenticatedUser();
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
+    if (authError || !user || !profile) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const supabase = createServiceClient();
 
     const { error } = await supabase
       .from("post_likes")
       .delete()
       .eq("post_id", postId)
-      .eq("user_id", user.id);
+      .eq("user_id", profile.id);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

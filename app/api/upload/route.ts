@@ -1,13 +1,11 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { getAuthenticatedUser, createServiceClient } from '@/lib/auth-helpers'
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const { user, profile, error: authError } = await getAuthenticatedUser()
 
-    if (authError || !user) {
+    if (authError || !user || !profile) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -30,14 +28,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File too large. Maximum size is 5MB.' }, { status: 400 })
     }
 
-    // Create Admin Client for bypassing RLS during Bucket setup/upload
-    const supabaseAdmin = createSupabaseClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabase = createServiceClient()
 
     // Ensure attachments bucket exists
-    await supabaseAdmin.storage.createBucket('attachments', {
+    await supabase.storage.createBucket('attachments', {
       public: true,
       fileSizeLimit: maxSize
     }).catch(() => {}) // Ignore if it exists
@@ -45,10 +39,10 @@ export async function POST(request: NextRequest) {
     // Generate unique filename
     const timestamp = Date.now()
     const extension = file.name.split('.').pop()
-    const filename = `${user.id}/${timestamp}.${extension}`
+    const filename = `${profile.id}/${timestamp}.${extension}`
 
     // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
       .from('attachments')
       .upload(filename, file, {
         cacheControl: '3600',
@@ -61,7 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get public URL
-    const { data: { publicUrl } } = supabaseAdmin.storage
+    const { data: { publicUrl } } = supabase.storage
       .from('attachments')
       .getPublicUrl(uploadData.path)
 

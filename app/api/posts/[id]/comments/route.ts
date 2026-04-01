@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser, createServiceClient } from "@/lib/auth-helpers";
 
 export async function GET(
   request: NextRequest,
@@ -7,7 +7,7 @@ export async function GET(
 ) {
   try {
     const { id: postId } = await params;
-    const supabase = await createClient();
+    const supabase = createServiceClient();
 
     const { data: comments, error } = await supabase
       .from("post_comments")
@@ -37,11 +37,9 @@ export async function POST(
 ) {
   try {
     const { id: postId } = await params;
-    const supabase = await createClient();
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { user, profile, error: authError } = await getAuthenticatedUser();
     
-    if (authError || !user) {
+    if (authError || !user || !profile) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -55,11 +53,13 @@ export async function POST(
       );
     }
 
+    const supabase = createServiceClient();
+
     const { data: comment, error } = await supabase
       .from("post_comments")
       .insert({
         post_id: postId,
-        author_id: user.id,
+        author_id: profile.id,
         content: content.trim(),
       })
       .select(`
@@ -71,12 +71,6 @@ export async function POST(
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-
-    // Update comments count on post
-    await supabase
-      .from("posts")
-      .update({ comments_count: supabase.rpc("increment") })
-      .eq("id", postId);
 
     return NextResponse.json({ comment }, { status: 201 });
   } catch (error) {
