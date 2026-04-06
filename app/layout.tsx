@@ -3,7 +3,9 @@ import { Geist, Geist_Mono, Amiri } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
 import { AuthProvider } from '@/lib/auth-context'
+import { RealtimeProvider } from '@/lib/realtime/realtime-context'
 import { Toaster } from '@/components/ui/sonner'
+import { CallModal } from '@/components/calls/call-modal'
 import './globals.css'
 
 const geist = Geist({ 
@@ -70,8 +72,11 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider>
-            {children}
-            <Toaster />
+            <RealtimeProvider>
+              {children}
+              <Toaster />
+              <CallModal />
+            </RealtimeProvider>
           </AuthProvider>
         </ThemeProvider>
         <Analytics />

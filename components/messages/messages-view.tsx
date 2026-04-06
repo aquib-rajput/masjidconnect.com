@@ -47,6 +47,9 @@ import { formatDistanceToNow, format, isToday, isYesterday } from "date-fns";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useSearchParams, useRouter } from "next/navigation";
+import { TypingIndicator } from "./typing-indicator";
+import { useTypingIndicator } from "@/hooks/use-typing-indicator";
+import { CallButton } from "@/components/calls/call-button";
 
 interface Conversation {
   id: string;
@@ -122,6 +125,9 @@ export function MessagesView() {
   const supabase = createClient();
   const searchParams = useSearchParams();
   const router = useRouter();
+  
+  // Typing indicator hook
+  const { startTyping, stopTyping } = useTypingIndicator(selectedConversation?.id || '');
 
   // Fetch conversations
   const fetchConversations = useCallback(async () => {
@@ -318,10 +324,11 @@ export function MessagesView() {
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to send message");
-
-      setNewMessage("");
-      clearImage();
+if (!res.ok) throw new Error("Failed to send message");
+  
+  setNewMessage("");
+  stopTyping(); // Stop typing indicator when message is sent
+  clearImage();
     } catch (error) {
       console.error("Error sending message:", error);
       toast.error("Failed to send message");
@@ -702,22 +709,40 @@ export function MessagesView() {
                     : `${selectedConversation.participants.length} Active Participants`}
                 </p>
               </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="rounded-xl h-10 w-10 hover:bg-muted/80 transition-all">
-                    <MoreVertical className="h-5 w-5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="rounded-2xl border-border/60 shadow-2xl p-1.5">
-                  <DropdownMenuItem 
-                    onClick={handleDeleteConversation}
-                    className="text-destructive focus:text-destructive focus:bg-destructive/10 rounded-xl py-2.5 font-bold"
-                  >
-                    <Trash2 className="mr-3 h-4 w-4" />
-                    Delete Conversation
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <div className="flex items-center gap-1">
+                {/* Call buttons for direct messages */}
+                {selectedConversation.type === "direct" && selectedConversation.participants.length > 0 && (() => {
+                  const otherParticipant = selectedConversation.participants.find(p => p.id !== user?.id);
+                  return otherParticipant ? (
+                    <CallButton
+                      userId={otherParticipant.id}
+                      userInfo={{ 
+                        display_name: otherParticipant.full_name, 
+                        avatar_url: otherParticipant.avatar_url 
+                      }}
+                      variant="icon"
+                      size="default"
+                      className="rounded-xl h-10 w-10"
+                    />
+                  ) : null;
+                })()}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="rounded-xl h-10 w-10 hover:bg-muted/80 transition-all">
+                      <MoreVertical className="h-5 w-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="rounded-2xl border-border/60 shadow-2xl p-1.5">
+                    <DropdownMenuItem 
+                      onClick={handleDeleteConversation}
+                      className="text-destructive focus:text-destructive focus:bg-destructive/10 rounded-xl py-2.5 font-bold"
+                    >
+                      <Trash2 className="mr-3 h-4 w-4" />
+                      Delete Conversation
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
 
             {/* Messages */}
@@ -852,6 +877,11 @@ export function MessagesView() {
               )}
             </ScrollArea>
 
+            {/* Typing Indicator */}
+            {selectedConversation && (
+              <TypingIndicator conversationId={selectedConversation.id} />
+            )}
+
             {/* Message Input */}
             <div className="border-t p-3 sm:p-4 bg-background/95 backdrop-blur shadow-2xl sticky bottom-0 z-20">
               {imagePreview && (
@@ -896,7 +926,14 @@ export function MessagesView() {
                     value={newMessage}
                     onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
                       setNewMessage(e.target.value);
+                      // Broadcast typing status
+                      if (e.target.value.trim()) {
+                        startTyping();
+                      } else {
+                        stopTyping();
+                      }
                     }}
+                    onBlur={() => stopTyping()}
                     placeholder="Write your message..."
                     className="border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-2 min-h-[44px] max-h-[120px] py-3 text-[16px] sm:text-sm leading-relaxed resize-none scrollbar-hide flex-1"
                     onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {

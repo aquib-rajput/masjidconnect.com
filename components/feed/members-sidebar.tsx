@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import {
   Users,
@@ -12,7 +12,9 @@ import {
   CheckCircle,
   ChevronRight,
   ExternalLink,
-  Filter
+  Filter,
+  Phone,
+  Video
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -43,6 +45,8 @@ import {
 import { cn } from '@/lib/utils'
 import { useFeedStore, type CommunityMember } from '@/lib/feed-store'
 import { FullProfileView } from './full-profile-view'
+import { useRealtime } from '@/lib/realtime/realtime-context'
+import { CallButton } from '@/components/calls/call-button'
 
 interface MembersSidebarProps {
   mosqueId?: string
@@ -50,13 +54,20 @@ interface MembersSidebarProps {
 }
 
 export function MembersSidebar({ mosqueId, className }: MembersSidebarProps) {
-  const { communityMembers, getOnlineMembers, getMembersByMosque } = useFeedStore()
+  const { communityMembers, getMembersByMosque } = useFeedStore()
+  const { onlineUsers } = useRealtime()
   const [searchQuery, setSearchQuery] = useState('')
   const [filterRole, setFilterRole] = useState<string>('all')
   const [selectedMember, setSelectedMember] = useState<CommunityMember | null>(null)
   const [isMembersSheetOpen, setIsMembersSheetOpen] = useState(false)
 
-  const onlineMembers = getOnlineMembers()
+  // Get online members using real-time presence data
+  const onlineMembers = useMemo(() => {
+    return communityMembers.filter(member => onlineUsers.has(member.id))
+  }, [communityMembers, onlineUsers])
+  
+  // Check if a specific member is online
+  const isMemberOnline = (memberId: string) => onlineUsers.has(memberId)
   
   const filteredMembers = communityMembers.filter(member => {
     const matchesSearch = member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -174,7 +185,8 @@ export function MembersSidebar({ mosqueId, className }: MembersSidebarProps) {
             {communityMembers.filter(m => m.role === 'imam').slice(0, 2).map(member => (
               <MemberCard 
                 key={member.id} 
-                member={member} 
+                member={member}
+                isOnline={isMemberOnline(member.id)}
                 onClick={() => setSelectedMember(member)}
                 getRoleIcon={getRoleIcon}
                 getRoleBadgeColor={getRoleBadgeColor}
@@ -185,7 +197,8 @@ export function MembersSidebar({ mosqueId, className }: MembersSidebarProps) {
             {communityMembers.filter(m => m.role === 'shura').slice(0, 1).map(member => (
               <MemberCard 
                 key={member.id} 
-                member={member} 
+                member={member}
+                isOnline={isMemberOnline(member.id)}
                 onClick={() => setSelectedMember(member)}
                 getRoleIcon={getRoleIcon}
                 getRoleBadgeColor={getRoleBadgeColor}
@@ -196,7 +209,8 @@ export function MembersSidebar({ mosqueId, className }: MembersSidebarProps) {
             {communityMembers.filter(m => m.position && m.role === 'user').slice(0, 2).map(member => (
               <MemberCard 
                 key={member.id} 
-                member={member} 
+                member={member}
+                isOnline={isMemberOnline(member.id)}
                 onClick={() => setSelectedMember(member)}
                 getRoleIcon={getRoleIcon}
                 getRoleBadgeColor={getRoleBadgeColor}
@@ -270,6 +284,7 @@ export function MembersSidebar({ mosqueId, className }: MembersSidebarProps) {
                         <MemberListItem
                           key={member.id}
                           member={member}
+                          isOnline={isMemberOnline(member.id)}
                           onClick={() => {
                             setSelectedMember(member)
                             setIsMembersSheetOpen(false)
@@ -295,6 +310,7 @@ export function MembersSidebar({ mosqueId, className }: MembersSidebarProps) {
                         <MemberListItem
                           key={member.id}
                           member={member}
+                          isOnline={true}
                           onClick={() => {
                             setSelectedMember(member)
                             setIsMembersSheetOpen(false)
@@ -326,89 +342,113 @@ export function MembersSidebar({ mosqueId, className }: MembersSidebarProps) {
 // Helper Components
 interface MemberCardProps {
   member: CommunityMember
+  isOnline: boolean
   onClick: () => void
   getRoleIcon: (role: string) => React.ReactNode
   getRoleBadgeColor: (role: string) => string
 }
 
-function MemberCard({ member, onClick, getRoleIcon, getRoleBadgeColor }: MemberCardProps) {
+function MemberCard({ member, isOnline, onClick, getRoleIcon, getRoleBadgeColor }: MemberCardProps) {
   return (
-    <button
-      onClick={onClick}
-      className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors text-left"
-    >
-      <div className="relative">
-        <Avatar className="h-10 w-10">
-          <AvatarImage src={member.avatar} />
-          <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
-            {member.name.split(' ').map(n => n[0]).join('')}
-          </AvatarFallback>
-        </Avatar>
-        {member.isOnline && (
-          <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background" />
-        )}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <span className="text-sm font-medium truncate">{member.name}</span>
-          {member.verified && (
-            <CheckCircle className="h-3.5 w-3.5 text-primary fill-primary/20" />
+    <div className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+      <button
+        onClick={onClick}
+        className="flex items-center gap-3 flex-1 min-w-0 text-left"
+      >
+        <div className="relative">
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={member.avatar} />
+            <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
+              {member.name.split(' ').map(n => n[0]).join('')}
+            </AvatarFallback>
+          </Avatar>
+          {isOnline && (
+            <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background" />
           )}
         </div>
-        <div className="flex items-center gap-2 mt-0.5">
-          <Badge variant="secondary" className={cn("text-xs h-5 gap-1", getRoleBadgeColor(member.role))}>
-            {getRoleIcon(member.role)}
-            {member.role === 'user' ? (member.position || 'Member') : member.role.charAt(0).toUpperCase() + member.role.slice(1)}
-          </Badge>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-medium truncate">{member.name}</span>
+            {member.verified && (
+              <CheckCircle className="h-3.5 w-3.5 text-primary fill-primary/20" />
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
+            <Badge variant="secondary" className={cn("text-xs h-5 gap-1", getRoleBadgeColor(member.role))}>
+              {getRoleIcon(member.role)}
+              {member.role === 'user' ? (member.position || 'Member') : member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+            </Badge>
+          </div>
         </div>
-      </div>
-    </button>
+      </button>
+      {isOnline && (
+        <CallButton
+          userId={member.id}
+          userInfo={{ display_name: member.name, avatar_url: member.avatar }}
+          variant="icon"
+          size="sm"
+        />
+      )}
+    </div>
   )
 }
 
 interface MemberListItemProps {
   member: CommunityMember
+  isOnline: boolean
   onClick: () => void
   getRoleIcon: (role: string) => React.ReactNode
   getRoleBadgeColor: (role: string) => string
 }
 
-function MemberListItem({ member, onClick, getRoleIcon, getRoleBadgeColor }: MemberListItemProps) {
+function MemberListItem({ member, isOnline, onClick, getRoleIcon, getRoleBadgeColor }: MemberListItemProps) {
   return (
-    <button
-      onClick={onClick}
-      className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors text-left"
-    >
-      <div className="relative">
-        <Avatar className="h-12 w-12">
-          <AvatarImage src={member.avatar} />
-          <AvatarFallback className="bg-primary/10 text-primary">
-            {member.name.split(' ').map(n => n[0]).join('')}
-          </AvatarFallback>
-        </Avatar>
-        {member.isOnline && (
-          <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 ring-2 ring-background" />
-        )}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <span className="font-medium truncate">{member.name}</span>
-          {member.verified && (
-            <CheckCircle className="h-4 w-4 text-primary fill-primary/20" />
+    <div className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">
+      <button
+        onClick={onClick}
+        className="flex items-center gap-3 flex-1 min-w-0 text-left"
+      >
+        <div className="relative">
+          <Avatar className="h-12 w-12">
+            <AvatarImage src={member.avatar} />
+            <AvatarFallback className="bg-primary/10 text-primary">
+              {member.name.split(' ').map(n => n[0]).join('')}
+            </AvatarFallback>
+          </Avatar>
+          {isOnline && (
+            <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 ring-2 ring-background" />
           )}
         </div>
-        <p className="text-sm text-muted-foreground truncate">@{member.username}</p>
-        <div className="flex items-center gap-2 mt-1">
-          <Badge variant="secondary" className={cn("text-xs", getRoleBadgeColor(member.role))}>
-            {getRoleIcon(member.role)}
-            <span className="ml-1">
-              {member.role === 'user' ? (member.position || 'Member') : member.role.charAt(0).toUpperCase() + member.role.slice(1)}
-            </span>
-          </Badge>
-          <span className="text-xs text-muted-foreground">{member.mosqueName}</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium truncate">{member.name}</span>
+            {member.verified && (
+              <CheckCircle className="h-4 w-4 text-primary fill-primary/20" />
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground truncate">@{member.username}</p>
+          <div className="flex items-center gap-2 mt-1">
+            <Badge variant="secondary" className={cn("text-xs", getRoleBadgeColor(member.role))}>
+              {getRoleIcon(member.role)}
+              <span className="ml-1">
+                {member.role === 'user' ? (member.position || 'Member') : member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+              </span>
+            </Badge>
+            <span className="text-xs text-muted-foreground">{member.mosqueName}</span>
+          </div>
         </div>
+      </button>
+      <div className="flex items-center gap-1">
+        {isOnline && (
+          <CallButton
+            userId={member.id}
+            userInfo={{ display_name: member.name, avatar_url: member.avatar }}
+            variant="icon"
+            size="sm"
+          />
+        )}
+        <ChevronRight className="h-5 w-5 text-muted-foreground" />
       </div>
-      <ChevronRight className="h-5 w-5 text-muted-foreground" />
-    </button>
+    </div>
   )
 }
