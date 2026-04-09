@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/tooltip"
 import { Phone, Video, PhoneCall } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 interface CallButtonProps {
   /** The user ID to call */
@@ -43,33 +44,37 @@ export function CallButton({
   className,
   showOptions = true
 }: CallButtonProps) {
-  const { startCall, callState, onlineUsers } = useRealtime()
+  const { initiateCall, currentCall, isUserOnline } = useRealtime()
   
-  const isUserOnline = onlineUsers.has(userId)
-  const isInCall = callState !== 'idle'
+  const userIsOnline = isUserOnline(userId)
+  const isInCall = !!currentCall
   
-  const handleAudioCall = () => {
-    startCall({
-      recipientIds: [userId],
-      type: 'audio',
-      participants: [{
-        id: userId,
-        display_name: userInfo.display_name || null,
-        avatar_url: userInfo.avatar_url || null
-      }]
-    })
+  const handleAudioCall = async () => {
+    try {
+      await initiateCall(
+        userId,
+        userInfo.display_name || 'User',
+        userInfo.avatar_url || null,
+        'audio'
+      )
+    } catch (error) {
+      console.error('[CallButton] Failed to start audio call:', error)
+      toast.error('Failed to start call')
+    }
   }
   
-  const handleVideoCall = () => {
-    startCall({
-      recipientIds: [userId],
-      type: 'video',
-      participants: [{
-        id: userId,
-        display_name: userInfo.display_name || null,
-        avatar_url: userInfo.avatar_url || null
-      }]
-    })
+  const handleVideoCall = async () => {
+    try {
+      await initiateCall(
+        userId,
+        userInfo.display_name || 'User',
+        userInfo.avatar_url || null,
+        'video'
+      )
+    } catch (error) {
+      console.error('[CallButton] Failed to start video call:', error)
+      toast.error('Failed to start call')
+    }
   }
   
   if (!showOptions) {
@@ -82,10 +87,10 @@ export function CallButton({
               size={size === "sm" ? "icon" : size}
               className={cn(
                 variant === "icon" && "h-8 w-8",
-                !isUserOnline && "opacity-50",
+                !userIsOnline && "opacity-50",
                 className
               )}
-              disabled={!isUserOnline || isInCall}
+              disabled={!userIsOnline || isInCall}
               onClick={handleAudioCall}
             >
               <Phone className={cn(
@@ -95,7 +100,7 @@ export function CallButton({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            {!isUserOnline ? "User is offline" : 
+            {!userIsOnline ? "User is offline" : 
              isInCall ? "Already in a call" : "Start voice call"}
           </TooltipContent>
         </Tooltip>
@@ -114,10 +119,10 @@ export function CallButton({
                 size={size === "sm" ? "icon" : size}
                 className={cn(
                   variant === "icon" && "h-8 w-8",
-                  !isUserOnline && "opacity-50 cursor-not-allowed",
+                  !userIsOnline && "opacity-50 cursor-not-allowed",
                   className
                 )}
-                disabled={!isUserOnline || isInCall}
+                disabled={!userIsOnline || isInCall}
               >
                 <PhoneCall className={cn(
                   size === "sm" ? "h-4 w-4" : "h-5 w-5"
@@ -127,7 +132,7 @@ export function CallButton({
             </DropdownMenuTrigger>
           </TooltipTrigger>
           <TooltipContent>
-            {!isUserOnline ? "User is offline" : 
+            {!userIsOnline ? "User is offline" : 
              isInCall ? "Already in a call" : "Start a call"}
           </TooltipContent>
         </Tooltip>

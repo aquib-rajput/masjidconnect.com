@@ -15,8 +15,7 @@ import {
   Volume2,
   VolumeX,
   Maximize2,
-  Minimize2,
-  Users
+  Minimize2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -24,18 +23,19 @@ export function CallModal() {
   const { 
     currentCall, 
     incomingCall, 
-    callState,
     localStream,
-    remoteStreams,
-    answerCall, 
+    remoteStream,
+    acceptCall, 
+    rejectCall,
     endCall,
-    toggleAudio,
+    toggleMute,
     toggleVideo,
-    isAudioEnabled,
+    isMuted,
     isVideoEnabled
   } = useRealtime()
   
   const localVideoRef = useRef<HTMLVideoElement>(null)
+  const remoteVideoRef = useRef<HTMLVideoElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isSpeakerMuted, setIsSpeakerMuted] = useState(false)
   const [callDuration, setCallDuration] = useState(0)
@@ -48,10 +48,18 @@ export function CallModal() {
     }
   }, [localStream])
   
+  // Attach remote stream to video element
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream
+      remoteVideoRef.current.muted = isSpeakerMuted
+    }
+  }, [remoteStream, isSpeakerMuted])
+  
   // Track call duration
   useEffect(() => {
     let interval: NodeJS.Timeout
-    if (callState === 'connected') {
+    if (currentCall?.status === 'connected') {
       if (!callStartTimeRef.current) {
         callStartTimeRef.current = Date.now()
       }
@@ -65,7 +73,7 @@ export function CallModal() {
       setCallDuration(0)
     }
     return () => clearInterval(interval)
-  }, [callState])
+  }, [currentCall?.status])
   
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -77,7 +85,24 @@ export function CallModal() {
   const isIncoming = !!incomingCall && !currentCall
   const activeCall = currentCall || incomingCall
   const isVideoCall = activeCall?.type === 'video'
-  const isGroupCall = activeCall?.type === 'group'
+  
+  // Get display info based on whether it's incoming or outgoing
+  const getOtherPartyInfo = () => {
+    if (!activeCall) return { name: 'Unknown', avatar: null }
+    
+    if (activeCall.isIncoming) {
+      return {
+        name: activeCall.initiatorName,
+        avatar: activeCall.initiatorAvatar
+      }
+    }
+    return {
+      name: activeCall.receiverName,
+      avatar: activeCall.receiverAvatar
+    }
+  }
+  
+  const otherParty = getOtherPartyInfo()
   
   if (!isOpen) return null
   
@@ -87,32 +112,32 @@ export function CallModal() {
         className={cn(
           "p-0 gap-0 overflow-hidden border-none",
           isFullscreen ? "max-w-full h-full rounded-none" : "max-w-2xl",
-          isVideoCall || isGroupCall ? "aspect-video" : "max-w-sm"
+          isVideoCall ? "aspect-video" : "max-w-sm"
         )}
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
         {/* Incoming Call UI */}
-        {isIncoming && (
+        {isIncoming && incomingCall && (
           <div className="flex flex-col items-center justify-center p-8 gap-6 bg-gradient-to-b from-background to-muted min-h-[400px]">
             <div className="relative">
               <Avatar className="h-24 w-24 ring-4 ring-primary/20">
-                <AvatarImage src={incomingCall.caller?.avatar_url || undefined} />
+                <AvatarImage src={otherParty.avatar || undefined} />
                 <AvatarFallback className="text-2xl bg-primary/10">
-                  {incomingCall.caller?.display_name?.charAt(0) || '?'}
+                  {otherParty.name?.charAt(0) || '?'}
                 </AvatarFallback>
               </Avatar>
               <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs font-medium">
-                {isVideoCall ? 'Video Call' : isGroupCall ? 'Group Call' : 'Audio Call'}
+                {isVideoCall ? 'Video Call' : 'Audio Call'}
               </div>
             </div>
             
             <div className="text-center space-y-2">
               <h3 className="text-xl font-semibold">
-                {incomingCall.caller?.display_name || 'Unknown Caller'}
+                {otherParty.name || 'Unknown Caller'}
               </h3>
               <p className="text-muted-foreground animate-pulse">
-                Incoming {isVideoCall ? 'video' : isGroupCall ? 'group' : 'voice'} call...
+                Incoming {isVideoCall ? 'video' : 'voice'} call...
               </p>
             </div>
             
@@ -121,7 +146,7 @@ export function CallModal() {
                 variant="destructive"
                 size="lg"
                 className="rounded-full h-16 w-16"
-                onClick={endCall}
+                onClick={rejectCall}
               >
                 <PhoneOff className="h-6 w-6" />
               </Button>
@@ -129,7 +154,7 @@ export function CallModal() {
                 variant="default"
                 size="lg"
                 className="rounded-full h-16 w-16 bg-green-600 hover:bg-green-700"
-                onClick={answerCall}
+                onClick={acceptCall}
               >
                 {isVideoCall ? <Video className="h-6 w-6" /> : <Phone className="h-6 w-6" />}
               </Button>
@@ -141,30 +166,26 @@ export function CallModal() {
         {currentCall && (
           <div className="relative flex flex-col h-full min-h-[400px] bg-black">
             {/* Video/Audio Area */}
-            {(isVideoCall || isGroupCall) ? (
+            {isVideoCall ? (
               <div className="flex-1 relative bg-muted/20">
-                {/* Remote Videos */}
-                {remoteStreams.size > 0 ? (
-                  <div className={cn(
-                    "grid gap-2 h-full p-2",
-                    remoteStreams.size === 1 ? "grid-cols-1" : 
-                    remoteStreams.size <= 4 ? "grid-cols-2" : 
-                    "grid-cols-3"
-                  )}>
-                    {Array.from(remoteStreams.entries()).map(([odId, stream]) => (
-                      <RemoteVideo key={odId} stream={stream} muted={isSpeakerMuted} />
-                    ))}
-                  </div>
+                {/* Remote Video */}
+                {remoteStream ? (
+                  <video
+                    ref={remoteVideoRef}
+                    autoPlay
+                    playsInline
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
                   <div className="flex items-center justify-center h-full">
                     <div className="text-center text-white/60">
-                      {callState === 'connecting' && (
+                      {currentCall.status === 'connecting' && (
                         <p className="animate-pulse">Connecting...</p>
                       )}
-                      {callState === 'ringing' && (
+                      {currentCall.status === 'ringing' && (
                         <p className="animate-pulse">Ringing...</p>
                       )}
-                      {callState === 'connected' && (
+                      {currentCall.status === 'connected' && (
                         <p>Waiting for video...</p>
                       )}
                     </div>
@@ -179,7 +200,7 @@ export function CallModal() {
                       autoPlay
                       playsInline
                       muted
-                      className="w-full h-full object-cover mirror"
+                      className="w-full h-full object-cover scale-x-[-1]"
                     />
                   </div>
                 )}
@@ -188,29 +209,28 @@ export function CallModal() {
               /* Audio Call UI */
               <div className="flex-1 flex flex-col items-center justify-center gap-4 bg-gradient-to-b from-background to-muted">
                 <Avatar className="h-24 w-24">
-                  <AvatarImage src={currentCall.participants?.[0]?.avatar_url || undefined} />
+                  <AvatarImage src={otherParty.avatar || undefined} />
                   <AvatarFallback className="text-2xl">
-                    {currentCall.participants?.[0]?.display_name?.charAt(0) || '?'}
+                    {otherParty.name?.charAt(0) || '?'}
                   </AvatarFallback>
                 </Avatar>
                 <div className="text-center">
                   <h3 className="text-lg font-semibold">
-                    {currentCall.participants?.[0]?.display_name || 'Unknown'}
+                    {otherParty.name || 'Unknown'}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    {callState === 'connected' ? formatDuration(callDuration) : 
-                     callState === 'connecting' ? 'Connecting...' :
-                     callState === 'ringing' ? 'Ringing...' : callState}
+                    {currentCall.status === 'connected' ? formatDuration(callDuration) : 
+                     currentCall.status === 'connecting' ? 'Connecting...' :
+                     currentCall.status === 'ringing' ? 'Ringing...' : currentCall.status}
                   </p>
                 </div>
               </div>
             )}
             
             {/* Call Info Bar */}
-            {callState === 'connected' && (isVideoCall || isGroupCall) && (
+            {currentCall.status === 'connected' && isVideoCall && (
               <div className="absolute top-4 left-4 right-4 flex justify-between items-center">
                 <div className="bg-black/50 backdrop-blur-sm rounded-full px-4 py-2 text-white text-sm flex items-center gap-2">
-                  {isGroupCall && <Users className="h-4 w-4" />}
                   <span>{formatDuration(callDuration)}</span>
                 </div>
                 <Button
@@ -232,18 +252,18 @@ export function CallModal() {
                   size="icon"
                   className={cn(
                     "rounded-full h-12 w-12",
-                    !isAudioEnabled ? "bg-red-500/80 hover:bg-red-500" : "bg-white/20 hover:bg-white/30"
+                    isMuted ? "bg-red-500/80 hover:bg-red-500" : "bg-white/20 hover:bg-white/30"
                   )}
-                  onClick={toggleAudio}
+                  onClick={toggleMute}
                 >
-                  {isAudioEnabled ? (
+                  {!isMuted ? (
                     <Mic className="h-5 w-5 text-white" />
                   ) : (
                     <MicOff className="h-5 w-5 text-white" />
                   )}
                 </Button>
                 
-                {(isVideoCall || isGroupCall) && (
+                {isVideoCall && (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -291,26 +311,5 @@ export function CallModal() {
         )}
       </DialogContent>
     </Dialog>
-  )
-}
-
-// Remote Video Component
-function RemoteVideo({ stream, muted }: { stream: MediaStream; muted: boolean }) {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream
-    }
-  }, [stream])
-  
-  return (
-    <video
-      ref={videoRef}
-      autoPlay
-      playsInline
-      muted={muted}
-      className="w-full h-full object-cover rounded-lg bg-muted"
-    />
   )
 }
