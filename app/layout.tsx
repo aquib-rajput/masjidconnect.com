@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
 import { AuthProvider } from '@/lib/auth-context'
 import { RealtimeProvider } from '@/lib/realtime/realtime-context'
+import { StreamProvider } from '@/lib/stream/stream-provider'
 import { Toaster } from '@/components/ui/sonner'
 import { CallModal } from '@/components/calls/call-modal'
 import './globals.css'
@@ -72,11 +73,13 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider>
-            <RealtimeProvider>
-              {children}
-              <Toaster />
-              <CallModal />
-            </RealtimeProvider>
+            <StreamProvider>
+              <RealtimeProvider>
+                {children}
+                <Toaster />
+                <CallModal />
+              </RealtimeProvider>
+            </StreamProvider>
           </AuthProvider>
         </ThemeProvider>
         <Analytics />
