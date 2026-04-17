@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Call,
@@ -28,6 +28,14 @@ import {
   Share2,
   Copy,
   Check,
+  Circle,
+  Square,
+  Languages,
+  UserCircle,
+  Download,
+  Pause,
+  Play,
+  StopCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +43,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   Sheet,
   SheetContent,
@@ -48,6 +58,9 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
@@ -55,12 +68,28 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { useStreamClient } from "@/lib/stream/stream-provider";
 
 import "@stream-io/video-react-sdk/dist/css/styles.css";
+
+// Caption languages supported
+type CaptionLanguage = "en" | "ur" | "off";
+
+const captionLanguages = {
+  en: { name: "English", nativeName: "English" },
+  ur: { name: "Urdu", nativeName: "اردو" },
+  off: { name: "Off", nativeName: "Off" },
+};
 
 interface AudioSpaceRoomProps {
   spaceId: string;
@@ -184,9 +213,28 @@ function AudioSpaceUI({
   const callingState = useCallCallingState();
   const participants = useParticipants();
   const localParticipant = useLocalParticipant();
+  
+  // Audio controls
   const [isMuted, setIsMuted] = useState(true);
   const [handRaised, setHandRaised] = useState(false);
   const [copied, setCopied] = useState(false);
+  
+  // Recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordOnlyMe, setRecordOnlyMe] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [showRecordingDialog, setShowRecordingDialog] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Captions state
+  const [captionLanguage, setCaptionLanguage] = useState<CaptionLanguage>("off");
+  const [currentCaption, setCurrentCaption] = useState("");
+  const [showCaptionSettings, setShowCaptionSettings] = useState(false);
+  
+  // Speech recognition for captions
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   // Start muted
   useEffect(() => {
@@ -194,6 +242,139 @@ function AudioSpaceUI({
       call.microphone.disable();
     }
   }, [call]);
+
+  // Setup speech recognition for captions
+  useEffect(() => {
+    if (typeof window !== "undefined" && captionLanguage !== "off") {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = captionLanguage === "ur" ? "ur-PK" : "en-US";
+        
+        recognition.onresult = (event) => {
+          let finalTranscript = "";
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript + " ";
+            }
+          }
+          if (finalTranscript) {
+            setCurrentCaption(finalTranscript);
+            // Auto-clear caption after 5 seconds
+            setTimeout(() => setCurrentCaption(""), 5000);
+          }
+        };
+        
+        recognition.onerror = (event) => {
+          console.error("Speech recognition error:", event.error);
+        };
+        
+        recognitionRef.current = recognition;
+        recognition.start();
+      }
+    }
+    
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, [captionLanguage]);
+
+  // Recording timer
+  useEffect(() => {
+    if (isRecording) {
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    } else {
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+      }
+      setRecordingTime(0);
+    }
+    
+    return () => {
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+      }
+    };
+  }, [isRecording]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const startRecording = async () => {
+    try {
+      let stream: MediaStream;
+      
+      if (recordOnlyMe) {
+        // Record only local audio
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } else {
+        // Record all audio (using display media for system audio)
+        // Note: This requires browser support and user permission
+        try {
+          stream = await navigator.mediaDevices.getDisplayMedia({
+            audio: true,
+            video: false,
+          });
+        } catch {
+          // Fallback to local audio only
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          toast.info("Recording your audio only. System audio capture not available.");
+        }
+      }
+      
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: "audio/webm",
+      });
+      
+      recordedChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: "audio/webm" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `audio-space-${spaceId}-${Date.now()}.webm`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success("Recording saved!");
+        
+        // Stop all tracks
+        stream.getTracks().forEach((track) => track.stop());
+      };
+      
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start(1000); // Collect data every second
+      setIsRecording(true);
+      setShowRecordingDialog(false);
+      toast.success("Recording started");
+    } catch (err) {
+      console.error("Error starting recording:", err);
+      toast.error("Failed to start recording");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
 
   const toggleMute = async () => {
     if (!call) return;
@@ -253,11 +434,61 @@ function AudioSpaceUI({
                   <Users className="h-3.5 w-3.5" />
                   {participants.length}
                 </span>
+                {isRecording && (
+                  <Badge variant="outline" className="h-5 text-[10px] gap-1 border-red-500 text-red-500">
+                    <Circle className="h-1.5 w-1.5 fill-red-500 animate-pulse" />
+                    REC {formatTime(recordingTime)}
+                  </Badge>
+                )}
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Caption Language Selector */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant={captionLanguage !== "off" ? "default" : "outline"}
+                  size="icon"
+                  className={cn(captionLanguage !== "off" && "bg-primary")}
+                >
+                  <Languages className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel>Captions Language</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioGroup
+                  value={captionLanguage}
+                  onValueChange={(value) => setCaptionLanguage(value as CaptionLanguage)}
+                >
+                  <DropdownMenuRadioItem value="off">Off</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="en">English</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="ur">اردو (Urdu)</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Recording Button */}
+            {isRecording ? (
+              <Button
+                variant="destructive"
+                size="icon"
+                onClick={stopRecording}
+              >
+                <StopCircle className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setShowRecordingDialog(true)}
+              >
+                <Circle className="h-4 w-4" />
+              </Button>
+            )}
+
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -356,6 +587,18 @@ function AudioSpaceUI({
           </div>
         </div>
       </header>
+
+      {/* Captions Display */}
+      {captionLanguage !== "off" && currentCaption && (
+        <div className="px-4 py-2 bg-black/80 text-white">
+          <p className={cn(
+            "text-center text-lg",
+            captionLanguage === "ur" && "font-urdu text-right direction-rtl"
+          )}>
+            {currentCaption}
+          </p>
+        </div>
+      )}
 
       {/* Main Content - Speakers Grid */}
       <main className="flex-1 overflow-auto p-4 sm:p-6">
@@ -480,6 +723,57 @@ function AudioSpaceUI({
           </TooltipProvider>
         </div>
       </footer>
+
+      {/* Recording Dialog */}
+      <Dialog open={showRecordingDialog} onOpenChange={setShowRecordingDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Start Recording</DialogTitle>
+            <DialogDescription>
+              Choose your recording preferences
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="flex items-center justify-between space-x-4">
+              <div className="flex items-center space-x-3">
+                <UserCircle className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <Label htmlFor="record-only-me" className="font-medium">
+                    Record Only Me
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Only record your own voice
+                  </p>
+                </div>
+              </div>
+              <Switch
+                id="record-only-me"
+                checked={recordOnlyMe}
+                onCheckedChange={setRecordOnlyMe}
+              />
+            </div>
+            
+            <Separator />
+            
+            <div className="text-sm text-muted-foreground">
+              {recordOnlyMe ? (
+                <p>Your voice will be recorded separately. Great for creating podcasts or personal notes.</p>
+              ) : (
+                <p>All audio in the space will be recorded (requires browser support).</p>
+              )}
+            </div>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setShowRecordingDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={startRecording} className="gap-2">
+              <Circle className="h-4 w-4 fill-current" />
+              Start Recording
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -575,4 +869,12 @@ function ParticipantItem({
       )}
     </div>
   );
+}
+
+// Add global type for SpeechRecognition
+declare global {
+  interface Window {
+    SpeechRecognition: typeof SpeechRecognition;
+    webkitSpeechRecognition: typeof SpeechRecognition;
+  }
 }
