@@ -55,6 +55,9 @@ import { cn } from '@/lib/utils'
 import { useFeedStore, type UserProfile, type CommunityMember, type Post, type PostAuthor } from '@/lib/feed-store'
 import { useCurrentUser } from './user-switcher'
 import { useRouter } from 'next/navigation'
+import { useRealtime } from '@/lib/realtime/realtime-context'
+import { CallButton } from '@/components/calls/call-button'
+import { OnlineBadge } from '@/components/ui/online-badge'
 
 interface FullProfileViewProps {
   profile: UserProfile | CommunityMember | PostAuthor
@@ -64,10 +67,14 @@ interface FullProfileViewProps {
 export function FullProfileView({ profile, onClose }: FullProfileViewProps) {
   const { userProfile, updateProfile, posts, followUser, unfollowUser, communityMembers } = useFeedStore()
   const { currentUser } = useCurrentUser()
+  const { onlineUsers } = useRealtime()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState('posts')
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editForm, setEditForm] = useState<Partial<UserProfile>>({})
+  
+  // Check if this profile's user is online
+  const isOnline = onlineUsers.has(profile.id)
 
   // Get full profile data if we only have PostAuthor
   const fullProfile = useMemo(() => {
@@ -194,7 +201,7 @@ export function FullProfileView({ profile, onClose }: FullProfileViewProps) {
                   {fullProfile.name.split(' ').map(n => n[0]).join('')}
                 </AvatarFallback>
               </Avatar>
-              {'isOnline' in fullProfile && fullProfile.isOnline && (
+              {isOnline && (
                 <span className="absolute bottom-2 right-2 h-5 w-5 rounded-full bg-green-500 ring-4 ring-background" />
               )}
             </div>
@@ -238,6 +245,18 @@ export function FullProfileView({ profile, onClose }: FullProfileViewProps) {
                   >
                     <MessageCircle className="h-4 w-4" />
                   </Button>
+                  {/* Video/Audio Call Buttons - only show when online */}
+                  {isOnline && (
+                    <CallButton
+                      userId={fullProfile.id}
+                      userInfo={{ 
+                        display_name: fullProfile.name, 
+                        avatar_url: fullProfile.avatar 
+                      }}
+                      variant="icon"
+                      size="default"
+                    />
+                  )}
                   <Button variant="outline" size="icon">
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>

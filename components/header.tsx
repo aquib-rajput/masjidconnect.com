@@ -20,7 +20,10 @@ import {
   LogOut,
   User,
   Settings,
-  MessageSquare
+  MessageSquare,
+  Mic,
+  Video,
+  ChevronDown
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useAuth } from '@/lib/auth-context'
@@ -32,18 +35,32 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
+// Regular navigation items (Feed will have its own dropdown)
 const navigation = [
   { name: 'Home', href: '/', icon: Building2 },
   { name: 'Mosques', href: '/mosques', icon: MapPin },
-  { name: 'Feed', href: '/feed', icon: Rss, requiresAuth: true },
   { name: 'Messages', href: '/messages', icon: MessageSquare, requiresAuth: true },
   { name: 'Prayer Times', href: '/prayer-times', icon: Clock },
   { name: 'Events', href: '/events', icon: Calendar },
   { name: 'Community', href: '/community', icon: Users },
 ]
+
+// Feed sub-menu items
+const feedSubMenu = [
+  { name: 'Social Feed', href: '/feed', icon: Rss, description: 'Posts & Updates' },
+  { name: 'Audio Spaces', href: '/feed/spaces', icon: Mic, description: 'Live audio rooms' },
+  { name: 'Video Meetings', href: '/feed/meetings', icon: Video, description: 'Video conferences' },
+]
+
+// Manage sub-menu items
+const manageSubMenu = {
+  admin: { name: 'Admin Panel', href: '/admin', icon: LayoutDashboard },
+  shura: { name: 'Shura Panel', href: '/shura', icon: Shield },
+}
 
 export function Header() {
   const pathname = usePathname()
@@ -73,6 +90,9 @@ export function Header() {
       .slice(0, 2)
   }
 
+  const isFeedActive = pathname?.startsWith('/feed')
+  const isManageActive = pathname?.startsWith('/admin') || pathname?.startsWith('/shura')
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-3 lg:px-8">
@@ -87,50 +107,214 @@ export function Header() {
           </Link>
 
           <div className="hidden lg:flex lg:gap-1">
-            {navigation.map((item) => {
-              const isActive = pathname === item.href
-              // Hide auth-required links for unauthenticated users
-              if (item.requiresAuth && !user) return null
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all",
-                    isActive 
-                      ? "bg-primary/10 text-primary shadow-sm" 
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground hover:translate-y-[-1px]"
+            {/* Home */}
+            <Link
+              href="/"
+              className={cn(
+                "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all",
+                pathname === '/' 
+                  ? "bg-primary/10 text-primary shadow-sm" 
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground hover:translate-y-[-1px]"
+              )}
+            >
+              <Building2 className="h-4 w-4" />
+              Home
+            </Link>
+
+            {/* Mosques */}
+            <Link
+              href="/mosques"
+              className={cn(
+                "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all",
+                pathname === '/mosques' 
+                  ? "bg-primary/10 text-primary shadow-sm" 
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground hover:translate-y-[-1px]"
+              )}
+            >
+              <MapPin className="h-4 w-4" />
+              Mosques
+            </Link>
+
+            {/* Feed Dropdown - Only show when authenticated */}
+            {user && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className={cn(
+                      "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all",
+                      isFeedActive 
+                        ? "bg-primary/10 text-primary shadow-sm" 
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground hover:translate-y-[-1px]"
+                    )}
+                  >
+                    <Rss className="h-4 w-4" />
+                    Feed
+                    <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56 rounded-2xl border-border/60 p-2 shadow-xl">
+                  <DropdownMenuLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-2 py-1.5">
+                    Feed
+                  </DropdownMenuLabel>
+                  {feedSubMenu.map((item) => {
+                    const isActive = pathname === item.href
+                    return (
+                      <DropdownMenuItem key={item.name} asChild className="rounded-xl my-0.5 p-0">
+                        <Link 
+                          href={item.href} 
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-2.5 w-full cursor-pointer",
+                            isActive && "bg-primary/10"
+                          )}
+                        >
+                          <div className={cn(
+                            "flex h-8 w-8 items-center justify-center rounded-lg",
+                            isActive ? "bg-primary text-primary-foreground" : "bg-muted"
+                          )}>
+                            <item.icon className="h-4 w-4" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className={cn("text-sm font-medium", isActive && "text-primary")}>{item.name}</span>
+                            <span className="text-xs text-muted-foreground">{item.description}</span>
+                          </div>
+                        </Link>
+                      </DropdownMenuItem>
+                    )
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* Messages - only show when authenticated */}
+            {user && (
+              <Link
+                href="/messages"
+                className={cn(
+                  "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all",
+                  pathname === '/messages' 
+                    ? "bg-primary/10 text-primary shadow-sm" 
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground hover:translate-y-[-1px]"
+                )}
+              >
+                <MessageSquare className="h-4 w-4" />
+                Messages
+              </Link>
+            )}
+
+            {/* Prayer Times */}
+            <Link
+              href="/prayer-times"
+              className={cn(
+                "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all",
+                pathname === '/prayer-times' 
+                  ? "bg-primary/10 text-primary shadow-sm" 
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground hover:translate-y-[-1px]"
+              )}
+            >
+              <Clock className="h-4 w-4" />
+              Prayer Times
+            </Link>
+
+            {/* Events */}
+            <Link
+              href="/events"
+              className={cn(
+                "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all",
+                pathname === '/events' 
+                  ? "bg-primary/10 text-primary shadow-sm" 
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground hover:translate-y-[-1px]"
+              )}
+            >
+              <Calendar className="h-4 w-4" />
+              Events
+            </Link>
+
+            {/* Community */}
+            <Link
+              href="/community"
+              className={cn(
+                "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all",
+                pathname === '/community' 
+                  ? "bg-primary/10 text-primary shadow-sm" 
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground hover:translate-y-[-1px]"
+              )}
+            >
+              <Users className="h-4 w-4" />
+              Community
+            </Link>
+
+            {/* Manage Dropdown - for Admin/Shura */}
+            {mounted && user && (isAdmin || isShura) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className={cn(
+                      "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all",
+                      isManageActive
+                        ? "bg-primary/10 text-primary shadow-sm" 
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground hover:translate-y-[-1px]"
+                    )}
+                  >
+                    <LayoutDashboard className="h-4 w-4" />
+                    Manage
+                    <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-52 rounded-2xl border-border/60 p-2 shadow-xl">
+                  <DropdownMenuLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-2 py-1.5">
+                    Panel
+                  </DropdownMenuLabel>
+                  {isAdmin && (
+                    <DropdownMenuItem asChild className="rounded-xl my-0.5 p-0">
+                      <Link 
+                        href="/admin" 
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 w-full cursor-pointer",
+                          pathname?.startsWith('/admin') && "bg-primary/10"
+                        )}
+                      >
+                        <div className={cn(
+                          "flex h-8 w-8 items-center justify-center rounded-lg",
+                          pathname?.startsWith('/admin') ? "bg-primary text-primary-foreground" : "bg-muted"
+                        )}>
+                          <LayoutDashboard className="h-4 w-4" />
+                        </div>
+                        <span className={cn("text-sm font-medium", pathname?.startsWith('/admin') && "text-primary")}>
+                          Admin Panel
+                        </span>
+                      </Link>
+                    </DropdownMenuItem>
                   )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.name}
-                </Link>
-              )
-            })}
+                  {isShura && (
+                    <DropdownMenuItem asChild className="rounded-xl my-0.5 p-0">
+                      <Link 
+                        href="/shura" 
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 w-full cursor-pointer",
+                          pathname?.startsWith('/shura') && "bg-teal-50 dark:bg-teal-950/50"
+                        )}
+                      >
+                        <div className={cn(
+                          "flex h-8 w-8 items-center justify-center rounded-lg",
+                          pathname?.startsWith('/shura') ? "bg-teal-600 text-white" : "bg-teal-50 dark:bg-teal-950"
+                        )}>
+                          <Shield className={cn("h-4 w-4", pathname?.startsWith('/shura') ? "text-white" : "text-teal-600 dark:text-teal-400")} />
+                        </div>
+                        <span className={cn("text-sm font-medium", pathname?.startsWith('/shura') && "text-teal-600 dark:text-teal-400")}>
+                          Shura Panel
+                        </span>
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Role-based navigation */}
-          {mounted && user && isShura && (
-            <Link href="/shura" className="hidden md:block">
-              <Button variant="outline" size="sm" className="gap-2 border-teal-600/50 text-teal-600 hover:bg-teal-50 hover:text-teal-700 dark:border-teal-500/50 dark:text-teal-500 dark:hover:bg-teal-950 dark:hover:text-teal-400 rounded-xl">
-                <Shield className="h-4 w-4" />
-                Shura
-              </Button>
-            </Link>
-          )}
-          {mounted && user && isAdmin && (
-            <Link href="/admin" className="hidden md:block">
-              <Button variant="outline" size="sm" className="gap-2 rounded-xl border-border/60">
-                <LayoutDashboard className="h-4 w-4" />
-                Admin
-              </Button>
-            </Link>
-          )}
-
           {!mounted ? (
-            <div className="h-9 w-9" /> // Placeholder to prevent layout shift
+            <div className="h-9 w-9" />
           ) : (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -261,10 +445,37 @@ export function Header() {
               )
             })}
             
-            <div className="my-4 border-t border-border/40" />
+            {/* Feed sub-menu in mobile */}
+            {user && (
+              <div className="pt-3 mt-3 border-t border-border/40">
+                <p className="px-4 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-2">Feed & Media</p>
+                {feedSubMenu.map((item) => {
+                  const isActive = pathname === item.href
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={cn(
+                        "flex items-center gap-4 rounded-xl px-4 py-3 text-base font-semibold transition-all active:scale-95",
+                        isActive 
+                          ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )}
+                    >
+                      <item.icon className={cn("h-5 w-5", isActive ? "text-primary-foreground" : "text-primary/70")} />
+                      <div className="flex flex-col">
+                        <span>{item.name}</span>
+                        <span className={cn("text-xs", isActive ? "text-primary-foreground/80" : "text-muted-foreground/60")}>{item.description}</span>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            )}
 
             {user && (isShura || isAdmin) && (
-              <div className="space-y-1.5 mb-4">
+              <div className="pt-3 mt-3 border-t border-border/40">
                 <p className="px-4 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-2">Management</p>
                 {isShura && (
                   <Link
@@ -289,7 +500,7 @@ export function Header() {
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="pt-4 mt-4 border-t border-border/40">
               {user ? (
                 <button
                   onClick={() => {
@@ -302,7 +513,7 @@ export function Header() {
                   Sign Out
                 </button>
               ) : (
-                <div className="grid grid-cols-2 gap-3 pt-2">
+                <div className="grid grid-cols-2 gap-3">
                   <Link
                     href="/auth/login"
                     onClick={() => setMobileMenuOpen(false)}
